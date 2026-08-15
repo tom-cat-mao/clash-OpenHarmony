@@ -118,7 +118,9 @@ export namespace CoreApi {
   }
 
   export async function patchMode(mode: string): Promise<boolean> {
-    const s = await request(http.RequestMethod.PATCH, '/configs', JSON.stringify({ mode: mode }));
+    // PATCH 枚举成员 API 26 才加入，低版本系统运行时为 undefined 会退化成 GET；
+    // HTTP 方法本质是报文字符串，直接传字面量即可（mihomo REST 正常处理 PATCH）
+    const s = await request('PATCH' as http.RequestMethod, '/configs', JSON.stringify({ mode: mode }));
     return s !== null;
   }
 

@@ -298,6 +298,15 @@ external-controller——恢复后平台注入的 127.0.0.1:9090 不受影响，
 
 ## 7. 已知限制（M1 边界）
 
+- **兼容下限 API 21（HarmonyOS 6.0.1）**：全量代码 @since 审计后的实际上限是
+  backgroundTaskManager 的 ContinuousTaskRequest 对象式 API（@since 21）。
+  三处 API 26 符号已处理：`http.RequestMethod.PATCH` 改传字面量（枚举成员
+  26 才有，低版本运行时为 undefined）；LiveViewKeeper 的 detailedReason /
+  ContinuousTaskDetailedCancelReason / USER_CANCEL_REMOVE_NOTIFICATION
+  已有运行时守卫（undefined 安全）；Circle().fill() 是 SDK 26 把重载签名加宽
+  到 ColorMetrics 导致的误报（ShapeAttribute.fill @since 7）。构建剩余 4 条
+  since 警告均属上述已处置项，不要再为它们提高 compatibleSdkVersion。
+
 - `/version` 返回的 version 是 mihomo 源码内置开发号（1.10.0），release 应用
   `-X` ldflags 注入真实版本
 - **`/restart` 在鸿蒙不可用**：mihomo 的 restart 实现是 `executor.Shutdown()` +
