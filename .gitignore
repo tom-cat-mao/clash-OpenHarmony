@@ -1,0 +1,25 @@
+# 工具链与外部参考（体积大/第三方）
+command-line-tools/
+reference/
+core/third_party/
+
+# 私有配置（含节点凭据，永不入库）
+tomvps.yaml
+.signing/
+
+# 构建产物
+clash-openharmony/dist/
+*.hap
+
+# macOS
+.DS_Store
+
+# 应用工程内部忽略项见 clash-openharmony/.gitignore（oh_modules/build/.hvigor 等）
+.reasonix/
+core/core
+.hvigor/
+*.log
+
+# 个人研究笔记（私有，不入库）
+RESEARCH.md
+RETENTION_RESEARCH.md

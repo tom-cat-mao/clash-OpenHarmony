@@ -1,0 +1,24 @@
+{
+  "color": [
+    {
+      "name": "brand",
+      "value": "#4A8CFF"
+    },
+    {
+      "name": "delay_good",
+      "value": "#2BD58A"
+    },
+    {
+      "name": "delay_mid",
+      "value": "#F0B74F"
+    },
+    {
+      "name": "delay_bad",
+      "value": "#F2637B"
+    },
+    {
+      "name": "chip_bg",
+      "value": "#1A4A8CFF"
+    }
+  ]
+}

@@ -1,0 +1,6 @@
+{
+  "modelVersion": "26.0.0",
+  "description": "ClashOH: mihomo (Clash.Meta) kernel client for HarmonyOS NEXT",
+  "dependencies": {
+  }
+}

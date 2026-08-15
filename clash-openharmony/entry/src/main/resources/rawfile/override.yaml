@@ -1,0 +1,19 @@
+# ClashOH 内置默认配置（空配置）
+# 未导入订阅时内核以此运行：无代理节点，全部流量直连。
+# 在「配置」页导入订阅后，内核自动切换为订阅配置。
+mixed-port: 7890
+mode: rule
+log-level: info
+
+# 内置 DNS：保证 TUN 劫持的域名查询能自包含解析（不依赖系统解析器）
+dns:
+  enable: true
+  ipv6: false
+  enhanced-mode: fake-ip
+  fake-ip-range: 198.18.0.1/16
+  nameserver:
+    - 223.5.5.5
+    - 119.29.29.29
+
+rules:
+  - MATCH,DIRECT

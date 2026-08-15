@@ -1,0 +1,20 @@
+{
+  "string": [
+    {
+      "name": "module_desc",
+      "value": "mihomo kernel client for HarmonyOS NEXT"
+    },
+    {
+      "name": "EntryAbility_desc",
+      "value": "ClashOH main ability"
+    },
+    {
+      "name": "EntryAbility_label",
+      "value": "ClashOH"
+    },
+    {
+      "name": "pasteboard_reason",
+      "value": "用于从剪贴板导入订阅配置"
+    }
+  ]
+}

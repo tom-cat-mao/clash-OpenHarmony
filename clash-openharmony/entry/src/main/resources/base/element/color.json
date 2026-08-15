@@ -1,0 +1,28 @@
+{
+  "color": [
+    {
+      "name": "start_window_background",
+      "value": "#FFFFFF"
+    },
+    {
+      "name": "brand",
+      "value": "#0A59F7"
+    },
+    {
+      "name": "delay_good",
+      "value": "#17A05E"
+    },
+    {
+      "name": "delay_mid",
+      "value": "#E6A23C"
+    },
+    {
+      "name": "delay_bad",
+      "value": "#D93026"
+    },
+    {
+      "name": "chip_bg",
+      "value": "#1A0A59F7"
+    }
+  ]
+}

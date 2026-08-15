@@ -1,0 +1,14 @@
+oh_modules/
+build/
+.hvigor/
+.cxx/
+local.properties
+.idea/
+*.iml
+dist/
+*.p12
+*.csr
+*.cer
+*.p7b
+entry/libs/
+.DS_Store
