@@ -58,6 +58,8 @@ interface UserOverrides {
   logLevel: string;
   allowLan: boolean;
   mode: string;
+  /** 内核日志是否落盘 mihomo.log（false=仅系统 hilog；wrapper 消费，不进 mihomo 配置） */
+  logToFile: boolean;
 }
 
 export default class ClashVpnAbility extends VpnExtensionAbility {
@@ -111,10 +113,11 @@ export default class ClashVpnAbility extends VpnExtensionAbility {
         mixedPort: s.mixedPort,
         logLevel: s.logLevel,
         allowLan: s.allowLan,
-        mode: s.mode
+        mode: s.mode,
+        logToFile: s.logToFile
       };
       Logger.info(TAG,
-        `user overrides: mixedPort=${s.mixedPort} logLevel=${s.logLevel} allowLan=${s.allowLan} mode=${s.mode}`);
+        `user overrides: mixedPort=${s.mixedPort} logLevel=${s.logLevel} allowLan=${s.allowLan} mode=${s.mode} logToFile=${s.logToFile}`);
       const startErr: string = await core.startTun(fd, cfg, JSON.stringify(overrides));
       if (startErr) {
         Logger.error(TAG, `startTun failed: ${startErr}`);

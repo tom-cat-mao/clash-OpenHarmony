@@ -1,6 +1,7 @@
 /*
  * SettingsPage.ets - 设置页（DESIGN.md §5 右）
- * 分组列表 + 二级页导航（Navigation pushPath）+ 保活开关 + 订阅自动更新 + GeoX 入口
+ * 分组卡片列表（运行/连接/自动化/诊断/关于，每组带标题）
+ * 二级页导航（Navigation pushPath）+ Toggle（保活/自动恢复/订阅自动更新/内核日志落盘）
  */
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
@@ -18,11 +19,13 @@ class SettingRow {
   hasToggle: boolean = false;
   dest: string = '';
   action: string = '';
-  /** 开关绑定：'keepAlive' | 'autoUpdate' | 'autoRestore' */
+  /** 开关绑定：'keepAlive' | 'autoUpdate' | 'autoRestore' | 'logToFile' */
   toggleKey: string = '';
 }
 
 class SettingGroup {
+  /** 分组标题（卡片上方 caption） */
+  title: string = '';
   rows: SettingRow[] = [];
 }
 
@@ -33,31 +36,42 @@ export struct SettingsPage {
   @State autoUpdate: boolean = false;
   @State autoRestore: boolean = false;
   @State autoUpdateIntervalHours: number = 24;
+  @State logToFile: boolean = true;
 
   private groups: SettingGroup[] = [
     {
+      title: '运行',
       rows: [
         { title: '打开应用自动恢复', sub: '冷启动时自动恢复上次 VPN 会话', hasToggle: true, dest: '', action: '', toggleKey: 'autoRestore' },
+        { title: '后台运行', sub: '关窗后保持内核存活（状态栏实况窗常驻）', hasToggle: true, dest: '', action: '', toggleKey: 'keepAlive' }
+      ]
+    },
+    {
+      title: '连接',
+      rows: [
         { title: '网络设置', sub: '按应用分流 · IPv6', hasToggle: false, dest: 'network', action: '', toggleKey: '' },
         { title: '覆写', sub: '端口 · 日志等级 · 局域网', hasToggle: false, dest: 'override', action: '', toggleKey: '' }
       ]
     },
     {
+      title: '自动化',
       rows: [
         { title: '自动更新订阅', sub: '内核运行期间按周期拉取激活订阅来源', hasToggle: true, dest: '', action: '', toggleKey: 'autoUpdate' },
         { title: '更新间隔', sub: '自动更新订阅的检查周期', hasToggle: false, dest: '', action: 'interval', toggleKey: '' }
       ]
     },
     {
+      title: '诊断',
       rows: [
         { title: '连接', sub: '活跃连接查看与关闭', hasToggle: false, dest: 'connections', action: '', toggleKey: '' },
         { title: '日志', sub: '内核日志 · 等级过滤', hasToggle: false, dest: 'logs', action: '', toggleKey: '' },
+        { title: '记录内核日志到文件', sub: '关闭后内核日志仅写入系统 hilog，不再占用应用存储（下次启动内核生效）', hasToggle: true, dest: '', action: '', toggleKey: 'logToFile' },
         { title: 'GeoX 数据', sub: '更新 geoip / geosite 数据库', hasToggle: false, dest: 'geo', action: '', toggleKey: '' }
       ]
     },
     {
+      title: '关于',
       rows: [
-        { title: '后台运行', sub: '关窗后保持内核存活（状态栏实况窗常驻）', hasToggle: true, dest: '', action: '', toggleKey: 'keepAlive' },
         { title: '关于', sub: '版本 · 开源许可', hasToggle: false, dest: 'about', action: '', toggleKey: '' }
       ]
     }
@@ -70,6 +84,7 @@ export struct SettingsPage {
     this.autoUpdate = s.autoUpdate;
     this.autoRestore = s.autoRestore;
     this.autoUpdateIntervalHours = s.autoUpdateIntervalHours;
+    this.logToFile = s.logToFile;
   }
 
   private async onKeepAliveChange(on: boolean): Promise<void> {
@@ -129,6 +144,9 @@ export struct SettingsPage {
     if (row.toggleKey === 'autoRestore') {
       return this.autoRestore;
     }
+    if (row.toggleKey === 'logToFile') {
+      return this.logToFile;
+    }
     return this.keepAlive;
   }
 
@@ -137,6 +155,8 @@ export struct SettingsPage {
       this.onAutoUpdateChange(on);
     } else if (row.toggleKey === 'autoRestore') {
       this.onAutoRestoreChange(on);
+    } else if (row.toggleKey === 'logToFile') {
+      this.onLogToFileChange(on);
     } else {
       this.onKeepAliveChange(on);
     }
@@ -148,6 +168,15 @@ export struct SettingsPage {
     const s = Settings.load(context);
     s.autoRestore = on;
     Settings.save(context, s);
+  }
+
+  private onLogToFileChange(on: boolean): void {
+    this.logToFile = on;
+    const context = getContext(this) as common.UIAbilityContext;
+    const s = Settings.load(context);
+    s.logToFile = on;
+    Settings.save(context, s);
+    promptAction.showToast({ message: '下次启动内核生效', duration: 1500 });
   }
 
   private onRowTap(row: SettingRow): void {
@@ -234,11 +263,18 @@ export struct SettingsPage {
         .margin({ top: 8, bottom: 4 })
 
       List({ space: 12 }) {
-        ForEach(this.groups, (group: SettingGroup, index: number) => {
+        ForEach(this.groups, (group: SettingGroup) => {
           ListItem() {
-            this.GroupCard(group)
+            Column({ space: 7 }) {
+              Text(group.title)
+                .fontSize(13)
+                .fontColor($r('sys.color.font_secondary'))
+                .width('100%')
+                .margin({ left: 4 })
+              this.GroupCard(group)
+            }
           }
-        }, (group: SettingGroup, index: number) => `group_${index}`)
+        }, (group: SettingGroup) => group.title)
       }
       .width('100%')
       .layoutWeight(1)

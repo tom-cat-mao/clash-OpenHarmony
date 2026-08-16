@@ -39,13 +39,20 @@ const (
 )
 
 var (
-	runLock     sync.Mutex
-	initialized bool
-	tunListener *sing_tun.Listener
-	logFile     *os.File
-	homeDir     string
-	logSub      <-chan log.Event
+	runLock          sync.Mutex
+	initialized      bool
+	tunListener      *sing_tun.Listener
+	logFile          *os.File
+	logFileMu        sync.Mutex // 保护 logFile/logFileBytes（写日志与关闭开关并发）
+	logFileBytes     int64
+	logToFileEnabled = true // 设置页「记录内核日志到文件」；false 时只进系统 hilog
+	homeDir          string
+	logSub           <-chan log.Event
 )
+
+// logFileMaxBytes - mihomo.log 轮转上限：超过 2MB 转存 mihomo.log.old（最多保留
+// 2 份共 ≤4MB），避免内核日志无限增长吃光应用沙箱存储。
+const logFileMaxBytes = 2 * 1024 * 1024
 
 // sanitizeConfigJson - 清洗 ArkTS 侧传入的配置文本（防御性，双端修复）：
 //  1. 去 UTF-8 BOM
@@ -131,22 +138,65 @@ func coreInit(home string) error {
 }
 
 // startLogRelay - 把 mihomo 日志转发到 hilog（android_stub 的 __android_log_print
-// 映射到 OH_LOG）并追加写入 homeDir/mihomo.log，供真机 hilog 抓取与排障。
+// 映射到 OH_LOG）并追加写入 homeDir/mihomo.log，供真机排障。落盘受两个约束：
+//  1. logToFileEnabled=false（设置页可关）时只进 hilog、不写文件；
+//  2. 超过 logFileMaxBytes 自动轮转为 mihomo.log.old，总量有界（≤2 份）。
 func startLogRelay() {
 	go func() {
-		if logFile == nil {
-			if f, err := os.OpenFile(filepath.Join(homeDir, "mihomo.log"), os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644); err == nil {
-				logFile = f
-			}
-		}
 		for e := range logSub {
 			line := fmt.Sprintf("[%s] %s", e.LogLevel.String(), e.Payload)
 			hilogPrint(int(e.LogLevel), "mihomo", line)
-			if logFile != nil {
-				_, _ = logFile.WriteString(line + "\n")
-			}
+			writeLogLine(line)
 		}
 	}()
+}
+
+// writeLogLine - 追加一行到 mihomo.log；达到上限时轮转（rename 到 .old 覆盖旧份），
+// 开关关闭时跳过写盘。锁内完成状态读写，与 applyOverrides 的关闭路径并发安全。
+func writeLogLine(line string) {
+	logFileMu.Lock()
+	defer logFileMu.Unlock()
+
+	if !logToFileEnabled {
+		return
+	}
+	path := filepath.Join(homeDir, "mihomo.log")
+	if logFile == nil {
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o644)
+		if err != nil {
+			return
+		}
+		logFile = f
+		if st, err := f.Stat(); err == nil {
+			logFileBytes = st.Size()
+		}
+	}
+	if logFileBytes > logFileMaxBytes {
+		_ = logFile.Close()
+		logFile = nil
+		logFileBytes = 0
+		_ = os.Rename(path, path+".old")
+		f, err := os.OpenFile(path, os.O_CREATE|os.O_TRUNC|os.O_WRONLY, 0o644)
+		if err != nil {
+			return
+		}
+		logFile = f
+	}
+	n, _ := logFile.WriteString(line + "\n")
+	logFileBytes += int64(n)
+}
+
+// setLogToFile - 设置页开关的运行时生效入口（startTun 应用 overrides 时调用）：
+// 关闭时立即释放文件句柄，后续日志只进 hilog。
+func setLogToFile(enabled bool) {
+	logFileMu.Lock()
+	defer logFileMu.Unlock()
+	logToFileEnabled = enabled
+	if !enabled && logFile != nil {
+		_ = logFile.Close()
+		logFile = nil
+		logFileBytes = 0
+	}
 }
 
 func coreStartTun(fd int, configJson string, overridesJson string) error {
@@ -259,8 +309,9 @@ func coreStartTun(fd int, configJson string, overridesJson string) error {
 // applyOverrides - 把 ArkTS 设置页的用户覆写（JSON）合并进 overlay。
 // 合并顺序: profile overlay -> overrides -> 平台必需项，语义 = 用户覆写 > 订阅配置
 // 同名键。键映射（ArkTS 驼峰 -> mihomo 配置 kebab）: mixedPort->mixed-port、
-// logLevel->log-level、allowLan->allow-lan；ipv6 只用于系统 VpnConfig、不动内核，
-// 因此忽略。overridesJson 为空或解析失败时跳过该层（不影响启动）。
+// logLevel->log-level、allowLan->allow-lan、mode->mode；ipv6 只用于系统 VpnConfig、
+// 不动内核，因此忽略。logToFile 是 wrapper 专用开关（不属 mihomo 配置），单独消费。
+// overridesJson 为空或解析失败时跳过该层（不影响启动）。
 func applyOverrides(overlay map[string]any, overridesJson string) {
 	if overridesJson == "" {
 		log.Infoln("[OHOS] overrides: empty, skipped")
@@ -270,6 +321,12 @@ func applyOverrides(overlay map[string]any, overridesJson string) {
 	if err := yaml.Unmarshal([]byte(overridesJson), &ov); err != nil {
 		log.Warnln("[OHOS] overrides: parse failed, skipped: %v", err)
 		return
+	}
+	// wrapper 专用键：不进 overlay，直接生效（日志落盘开关，默认开）
+	if v, ok := ov["logToFile"]; ok {
+		if b, isBool := v.(bool); isBool {
+			setLogToFile(b)
+		}
 	}
 	keyMap := map[string]string{
 		"mixedPort": "mixed-port",
@@ -333,4 +390,3 @@ func parseTunPrefix(s string) (netip.Prefix, error) {
 	}
 	return p, nil
 }
-

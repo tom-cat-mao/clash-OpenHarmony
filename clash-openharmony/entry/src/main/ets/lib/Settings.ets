@@ -34,6 +34,8 @@ export class AppSettings {
   cardFormIdsJson: string = '[]';
   /** 代理组排序方式记忆：Map<组名, 0|1>（0=按名称, 1=按延迟升序）的 JSON 字符串 */
   proxySortJson: string = '{}';
+  /** 内核日志是否写入应用沙箱 mihomo.log（默认开；关闭后仅进系统 hilog，下次启动内核生效） */
+  logToFile: boolean = true;
 }
 
 export namespace Settings {
@@ -65,6 +67,7 @@ export namespace Settings {
       s.vpnWasConnected = p.getSync('vpnWasConnected', false) as boolean;
       s.cardFormIdsJson = p.getSync('cardFormIdsJson', '[]') as string;
       s.proxySortJson = p.getSync('proxySortJson', '{}') as string;
+      s.logToFile = p.getSync('logToFile', true) as boolean;
     } catch (e) {
       Logger.error(TAG, `load failed: ${JSON.stringify(e)}`);
     }
@@ -89,6 +92,7 @@ export namespace Settings {
       p.putSync('vpnWasConnected', s.vpnWasConnected);
       p.putSync('cardFormIdsJson', s.cardFormIdsJson);
       p.putSync('proxySortJson', s.proxySortJson);
+      p.putSync('logToFile', s.logToFile);
       p.flush();
     } catch (e) {
       Logger.error(TAG, `save failed: ${JSON.stringify(e)}`);
