@@ -388,7 +388,9 @@ export struct ProxyGroupPage {
                     .fontSize(12)
                     .fontColor($r('sys.color.font_primary'))
                     .maxLines(1)
-                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    // 名称超长时横向滚动（TextOverflow.MARQUEE：未溢出保持静态，溢出自动滚动；
+                    // 本 SDK 的 Text 无 .marquee() 属性，官方推荐用 MARQUEE 替代独立 Marquee 组件）
+                    .textOverflow({ overflow: TextOverflow.MARQUEE })
                     .layoutWeight(1)
                 }
                 .width('100%')
