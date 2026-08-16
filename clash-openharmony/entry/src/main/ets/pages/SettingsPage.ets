@@ -9,6 +9,7 @@ import { Settings, AppSettings } from '../lib/Settings';
 import { LiveViewKeeper } from '../lib/LiveViewKeeper';
 import { VpnController, VpnStatus } from '../lib/VpnController';
 import { AutoUpdater } from '../lib/AutoUpdater';
+import { tabBarSafePad } from '../lib/H7';
 
 /** 订阅自动更新可选间隔（小时） */
 const INTERVAL_OPTIONS: number[] = [12, 24, 48, 72];
@@ -250,17 +251,21 @@ export struct SettingsPage {
     }
     .width('100%')
     .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(12)
+    .borderRadius(16)
   }
 
   build() {
     Column({ space: 12 }) {
-      Text('设置')
-        .fontSize(26)
-        .fontWeight(FontWeight.Bold)
-        .fontColor($r('sys.color.font_primary'))
-        .width('100%')
-        .margin({ top: 8, bottom: 4 })
+      Row() {
+        Text('设置')
+          .fontSize(26)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('sys.color.font_primary'))
+      }
+      .width('100%')
+      .height(40)
+      .alignItems(VerticalAlign.Center)
+      .margin({ top: 8, bottom: 4 })
 
       List({ space: 12 }) {
         ForEach(this.groups, (group: SettingGroup) => {
@@ -279,6 +284,8 @@ export struct SettingsPage {
       .width('100%')
       .layoutWeight(1)
       .scrollBar(BarState.Off)
+      // 鸿蒙7：悬浮底栏遮挡避让
+      .contentEndOffset(tabBarSafePad())
     }
     .width('100%')
     .height('100%')

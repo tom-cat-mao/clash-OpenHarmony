@@ -12,6 +12,7 @@ import { ProfileStore, ProfileMeta, ProfileMetaExt } from '../lib/ProfileStore';
 import { CoreApi } from '../lib/CoreApi';
 import { Logger } from '../lib/Logger';
 import { ProfileEditBus } from './ProfileEditPage';
+import { H7, sheetOptions, tabBarSafePad } from '../lib/H7';
 
 const TAG = 'profile';
 
@@ -496,8 +497,9 @@ export struct ProfilePage {
         .height(16)
     }
     .width('100%')
-    .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(16)
+    // 鸿蒙7：sheet 内容根容器透明，露出底层 ULTRA_THICK 系统材质
+    .backgroundColor(H7 ? Color.Transparent : $r('sys.color.comp_background_primary'))
+    .borderRadius(H7 ? 0 : 16)
   }
 
   @Builder
@@ -530,8 +532,8 @@ export struct ProfilePage {
       .width('100%')
     }
     .padding(20)
-    .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(16)
+    .backgroundColor(H7 ? Color.Transparent : $r('sys.color.comp_background_primary'))
+    .borderRadius(H7 ? 0 : 16)
   }
 
   @Builder
@@ -566,8 +568,8 @@ export struct ProfilePage {
       .width('100%')
     }
     .padding(20)
-    .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(16)
+    .backgroundColor(H7 ? Color.Transparent : $r('sys.color.comp_background_primary'))
+    .borderRadius(H7 ? 0 : 16)
   }
 
   @Builder
@@ -603,6 +605,8 @@ export struct ProfilePage {
           })
       }
       .width('100%')
+      .height(40)
+      .alignItems(VerticalAlign.Center)
       .margin({ top: 8, bottom: 4 })
 
       if (this.profiles.length === 0) {
@@ -634,7 +638,7 @@ export struct ProfilePage {
           }
           .width('100%')
           .backgroundColor($r('sys.color.comp_background_primary'))
-          .borderRadius(12)
+          .borderRadius(16)
         }
         .onRefreshing(() => {
           this.onPullRefresh();
@@ -645,8 +649,8 @@ export struct ProfilePage {
     }
     .width('100%')
     .height('100%')
-    .padding({ left: 16, right: 16 })
+    .padding({ left: 16, right: 16, bottom: tabBarSafePad() })
     .backgroundColor($r('sys.color.background_secondary'))
-    .bindSheet($$this.showSheet, this.MainSheet(), { height: SheetSize.MEDIUM })
+    .bindSheet($$this.showSheet, this.MainSheet(), sheetOptions())
   }
 }

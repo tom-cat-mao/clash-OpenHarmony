@@ -14,6 +14,7 @@ import { AboutPage } from './AboutPage';
 import { ProxyGroupPage, ProxyGroupBus } from './ProxyGroupPage';
 import { ProfileEditPage } from './ProfileEditPage';
 import { GeoPage } from './GeoPage';
+import { H7, tabBarFloating } from '../lib/H7';
 
 @Entry
 @Component
@@ -81,6 +82,8 @@ struct Index {
       SymbolGlyph(this.currentTab === index ? symbolActive : symbol)
         .fontSize(22)
         .fontColor(this.currentTab === index ? [$r('sys.color.brand')] : [$r('sys.color.icon_secondary')])
+        // 鸿蒙7：选中弹跳反馈（BounceSymbolEffect @since 12，新旧系统均可用）
+        .symbolEffect(new BounceSymbolEffect(EffectScope.LAYER, EffectDirection.DOWN), this.currentTab === index)
       Text(label)
         .fontSize(11)
         .fontColor(this.currentTab === index ? $r('sys.color.brand') : $r('sys.color.font_secondary'))
@@ -119,6 +122,9 @@ struct Index {
       .barHeight(56)
       .animationDuration(0)
       .scrollable(false)
+      // 鸿蒙7：悬浮玻璃胶囊底栏（THIN 材质 + 系统渐变蒙层），内容滚动透出；旧系统保持贴底实底栏
+      .barOverlap(H7)
+      .barFloatingStyle(tabBarFloating())
       .onChange((index: number) => {
         this.currentTab = index;
         this.currentVisibleTab = index;

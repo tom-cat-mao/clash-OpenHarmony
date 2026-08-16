@@ -2,7 +2,7 @@
   "color": [
     {
       "name": "brand",
-      "value": "#4A8CFF"
+      "value": "#317AF7"
     },
     {
       "name": "delay_good",
@@ -18,7 +18,11 @@
     },
     {
       "name": "chip_bg",
-      "value": "#1A4A8CFF"
+      "value": "#1A317AF7"
+    },
+    {
+      "name": "glow_soft",
+      "value": "#14317AF7"
     }
   ]
 }

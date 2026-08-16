@@ -23,6 +23,10 @@
     {
       "name": "chip_bg",
       "value": "#1A0A59F7"
+    },
+    {
+      "name": "glow_soft",
+      "value": "#140A59F7"
     }
   ]
 }

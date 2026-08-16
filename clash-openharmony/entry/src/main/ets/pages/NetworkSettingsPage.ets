@@ -5,6 +5,7 @@
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
 import { Settings } from '../lib/Settings';
+import { H7, sheetOptions } from '../lib/H7';
 
 const ACCESS_MODES: string[] = ['全部应用', '仅选中应用', '排除选中应用'];
 const ACCESS_VALUES: string[] = ['all', 'white', 'black'];
@@ -98,8 +99,9 @@ export struct NetworkSettingsPage {
       .width('100%')
     }
     .padding(20)
-    .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(16)
+    // 鸿蒙7：sheet 内容根容器透明，露出底层 ULTRA_THICK 系统材质
+    .backgroundColor(H7 ? Color.Transparent : $r('sys.color.comp_background_primary'))
+    .borderRadius(H7 ? 0 : 16)
   }
 
   build() {
@@ -215,6 +217,6 @@ export struct NetworkSettingsPage {
     .height('100%')
     .padding({ left: 16, right: 16, top: 8 })
     .backgroundColor($r('sys.color.background_secondary'))
-    .bindSheet($$this.showAddDialog, this.AddPkgDialog(), { height: SheetSize.MEDIUM })
+    .bindSheet($$this.showAddDialog, this.AddPkgDialog(), sheetOptions())
   }
 }

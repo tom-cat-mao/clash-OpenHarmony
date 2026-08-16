@@ -8,6 +8,7 @@ import { promptAction } from '@kit.ArkUI';
 import { Logger } from '../lib/Logger';
 import { common } from '@kit.AbilityKit';
 import { Settings } from '../lib/Settings';
+import { H7, sheetOptions } from '../lib/H7';
 
 const TAG = 'proxyGroup';
 const TEST_URL = 'https://www.gstatic.com/generate_204';
@@ -304,8 +305,9 @@ export struct ProxyGroupPage {
     .alignItems(HorizontalAlign.Start)
     .width('100%')
     .padding(20)
-    .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(16)
+    // 鸿蒙7：sheet 内容根容器透明，露出底层 ULTRA_THICK 系统材质
+    .backgroundColor(H7 ? Color.Transparent : $r('sys.color.comp_background_primary'))
+    .borderRadius(H7 ? 0 : 16)
   }
 
   build() {
@@ -436,6 +438,6 @@ export struct ProxyGroupPage {
     .onSizeChange((_o: SizeOptions, n: SizeOptions) => {
       this.cols = Number(n.width) >= 600 ? 3 : 2;
     })
-    .bindSheet($$this.detailShow, this.NodeDetailSheet(), { height: SheetSize.MEDIUM })
+    .bindSheet($$this.detailShow, this.NodeDetailSheet(), sheetOptions())
   }
 }

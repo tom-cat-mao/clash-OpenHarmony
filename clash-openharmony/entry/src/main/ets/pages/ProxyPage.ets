@@ -11,6 +11,7 @@ import { ProxyGroupBus, ProxyEvents } from './ProxyGroupPage';
 import { ProxyData } from '../lib/ProxyData';
 import { ProfileStore } from '../lib/ProfileStore';
 import { common } from '@kit.AbilityKit';
+import { tabBarSafePad } from '../lib/H7';
 
 const GROUP_TYPES: string[] = ['Selector', 'URLTest', 'Fallback', 'LoadBalance'];
 
@@ -219,7 +220,7 @@ export struct ProxyPage {
     .width('100%')
     .padding({ top: 8, bottom: 8, left: 12, right: 12 })
     .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(10)
+    .borderRadius(16)
   }
 
   build() {
@@ -231,6 +232,8 @@ export struct ProxyPage {
           .fontColor($r('sys.color.font_primary'))
       }
       .width('100%')
+      .height(40)
+      .alignItems(VerticalAlign.Center)
       .margin({ top: 8, bottom: 4 })
 
       if (this.mode === 'direct') {
@@ -326,6 +329,8 @@ export struct ProxyPage {
             .width('100%')
             .layoutWeight(1)
             .scrollBar(BarState.Off)
+            // 鸿蒙7：内容可滚入悬浮底栏区域，尾部 inset 保证末行可完全露出
+            .contentEndOffset(tabBarSafePad())
           }
           .width('100%')
           .layoutWeight(1)

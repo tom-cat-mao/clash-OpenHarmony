@@ -15,6 +15,7 @@ import { LiveViewKeeper } from '../lib/LiveViewKeeper';
 import { AutoUpdater } from '../lib/AutoUpdater';
 import { CardSync } from '../lib/CardSync';
 import { Logger } from '../lib/Logger';
+import { H7, matHero, matCard, matFloat, tabBarSafePad } from '../lib/H7';
 
 const TAG = 'home';
 
@@ -377,7 +378,7 @@ export struct HomePage {
   }
 
   @Builder
-  InfoCard(params: InfoCardParams) {
+  InfoCardBody(params: InfoCardParams) {
     Column({ space: 6 }) {
       Row({ space: 4 }) {
         if (params.symbol !== undefined) {
@@ -391,7 +392,7 @@ export struct HomePage {
       }
       .alignItems(VerticalAlign.Center)
       Text(params.value)
-        .fontSize(17)
+        .fontSize(22)
         .fontWeight(FontWeight.Medium)
         .fontColor($r('sys.color.font_primary'))
         .maxLines(1)
@@ -407,47 +408,83 @@ export struct HomePage {
     .alignItems(HorizontalAlign.Start)
     .padding(14)
     .width('100%')
-    .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(12)
-    .stateStyles({
-      pressed: { .backgroundColor($r('sys.color.comp_background_secondary')) },
-      normal: { .backgroundColor($r('sys.color.comp_background_primary')) }
-    })
-    .onClick(() => {
-      if (params.onTap) {
-        params.onTap();
+  }
+
+  @Builder
+  InfoCard(params: InfoCardParams) {
+    if (H7) {
+      // 鸿蒙7：透明底 + THIN 系统材质（自带交互形变与光感反馈，无需 stateStyles）
+      Column() {
+        this.InfoCardBody(params)
       }
-    })
+      .width('100%')
+      .backgroundColor(Color.Transparent)
+      .borderRadius(16)
+      .systemMaterial(matCard())
+      .onClick(() => {
+        if (params.onTap) {
+          params.onTap();
+        }
+      })
+    } else {
+      Column() {
+        this.InfoCardBody(params)
+      }
+      .width('100%')
+      .backgroundColor($r('sys.color.comp_background_primary'))
+      .borderRadius(16)
+      .stateStyles({
+        pressed: { .backgroundColor($r('sys.color.comp_background_secondary')) },
+        normal: { .backgroundColor($r('sys.color.comp_background_primary')) }
+      })
+      .onClick(() => {
+        if (params.onTap) {
+          params.onTap();
+        }
+      })
+    }
   }
 
   build() {
-    Column({ space: 12 }) {
-      Column({ space: 4 }) {
-        Text('ClashOH')
-          .fontSize(26)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('sys.color.font_primary'))
-        Text('mihomo 内核 · 纯血鸿蒙')
-          .fontSize(12)
-          .fontColor($r('sys.color.font_tertiary'))
+    Stack() {
+      if (H7) {
+        // 鸿蒙7 空间感：顶部品牌弥散光（8% 蓝渐隐，glow_soft）
+        Column()
+          .width('100%')
+          .height(220)
+          .linearGradient({
+            angle: 180,
+            colors: [[$r('app.color.glow_soft'), 0.0], ['#00000000', 1.0]]
+          })
       }
-      .alignItems(HorizontalAlign.Start)
-      .width('100%')
-      .margin({ top: 8, bottom: 4 })
+      Column({ space: 12 }) {
+        Row() {
+          Text('ClashOH')
+            .fontSize(26)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('sys.color.font_primary'))
+        }
+        .width('100%')
+        .height(40)
+        .alignItems(VerticalAlign.Center)
+        .margin({ top: 8, bottom: 4 })
 
-      Column({ space: 14 }) {
+        // 鸿蒙7：标题固定在顶部（与其他页同一 Column 结构，位置一致），内容区可滚动
+        Scroll() {
+        Column({ space: 12 }) {
+        Column({ space: 10 }) {
         Stack() {
           Circle()
-            .width(148)
-            .height(148)
+            .width(128)
+            .height(128)
             .fill(this.ringColor())
             .opacity(this.status === VpnStatus.Disconnected ? 0.5 : 1)
           SymbolGlyph($r('sys.symbol.power'))
-            .fontSize(48)
+            .fontSize(44)
             .fontColor([Color.White])
         }
-        .width(148)
-        .height(148)
+        .width(128)
+        .height(128)
         .scale({ x: this.pulse, y: this.pulse })
         .stateStyles({
           pressed: { .opacity(0.6) },
@@ -464,14 +501,14 @@ export struct HomePage {
           .fontSize(13)
           .fontColor($r('sys.color.font_secondary'))
 
-        // 模式切换
+        // 模式切换（鸿蒙7：容器 ULTRA_THIN 材质 + 20 圆角胶囊）
         Row({ space: 0 }) {
           ForEach(MODE_LABELS, (label: string, index: number) => {
             Text(label)
               .fontSize(13)
               .fontColor(this.modeIndex === index ? Color.White : $r('sys.color.font_secondary'))
               .backgroundColor(this.modeIndex === index ? $r('sys.color.brand') : Color.Transparent)
-              .borderRadius(14)
+              .borderRadius(16)
               .padding({ top: 6, bottom: 6, left: 20, right: 20 })
               .stateStyles({
                 pressed: { .opacity(0.6) },
@@ -482,14 +519,17 @@ export struct HomePage {
               })
           }, (label: string, index: number) => label + (this.modeIndex === index ? '|on' : '|off'))
         }
-        .backgroundColor($r('sys.color.comp_background_secondary'))
-        .borderRadius(16)
+        .backgroundColor(H7 ? Color.Transparent : $r('sys.color.comp_background_secondary'))
+        .borderRadius(20)
+        .systemMaterial(matFloat())
         .padding(2)
       }
       .width('100%')
-      .padding({ top: 20, bottom: 20 })
-      .backgroundColor($r('sys.color.comp_background_primary'))
-      .borderRadius(16)
+      .padding({ top: 16, bottom: 16 })
+      // 鸿蒙7：主卡透明底 + REGULAR 系统材质 + 20 圆角；旧系统保持实卡 16
+      .backgroundColor(H7 ? Color.Transparent : $r('sys.color.comp_background_primary'))
+      .borderRadius(H7 ? 20 : 16)
+      .systemMaterial(matHero())
 
       Row({ space: 12 }) {
         Column() {
@@ -531,32 +571,63 @@ export struct HomePage {
           }
         })
       } else {
-        Column({ space: 6 }) {
-          Text('还没有订阅配置')
-            .fontSize(15)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('sys.color.font_primary'))
-          Text('点这里去「配置」页导入（订阅 URL / 本地文件）')
-            .fontSize(12)
-            .fontColor($r('sys.color.font_secondary'))
+        if (H7) {
+          Column({ space: 6 }) {
+            Text('还没有订阅配置')
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('sys.color.font_primary'))
+            Text('点这里去「配置」页导入（订阅 URL / 本地文件）')
+              .fontSize(12)
+              .fontColor($r('sys.color.font_secondary'))
+          }
+          .alignItems(HorizontalAlign.Start)
+          .padding(14)
+          .width('100%')
+          .backgroundColor(Color.Transparent)
+          .borderRadius(16)
+          .systemMaterial(matCard())
+          .onClick(() => {
+            this.tabJump = 2;
+          })
+        } else {
+          Column({ space: 6 }) {
+            Text('还没有订阅配置')
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('sys.color.font_primary'))
+            Text('点这里去「配置」页导入（订阅 URL / 本地文件）')
+              .fontSize(12)
+              .fontColor($r('sys.color.font_secondary'))
+          }
+          .alignItems(HorizontalAlign.Start)
+          .padding(14)
+          .width('100%')
+          .backgroundColor($r('sys.color.comp_background_primary'))
+          .borderRadius(16)
+          .stateStyles({
+            pressed: { .backgroundColor($r('sys.color.comp_background_secondary')) },
+            normal: { .backgroundColor($r('sys.color.comp_background_primary')) }
+          })
+          .onClick(() => {
+            this.tabJump = 2;
+          })
         }
-        .alignItems(HorizontalAlign.Start)
-        .padding(14)
+        }
+        }
         .width('100%')
-        .backgroundColor($r('sys.color.comp_background_primary'))
-        .borderRadius(12)
-        .stateStyles({
-          pressed: { .backgroundColor($r('sys.color.comp_background_secondary')) },
-          normal: { .backgroundColor($r('sys.color.comp_background_primary')) }
-        })
-        .onClick(() => {
-          this.tabJump = 2;
-        })
+        .padding({ bottom: tabBarSafePad() })
+        }
+        .layoutWeight(1)
+        .scrollBar(BarState.Off)
+        .align(Alignment.Top)
       }
+      .width('100%')
+      .height('100%')
+      .padding({ left: 16, right: 16 })
     }
     .width('100%')
     .height('100%')
-    .padding({ left: 16, right: 16 })
     .backgroundColor($r('sys.color.background_secondary'))
   }
 }
