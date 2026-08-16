@@ -3,7 +3,7 @@
  * 大圆环启停（VpnController）+ 实时速率（WS /traffic）+ 模式切换 + 当前节点/配置
  */
 import { common } from '@kit.AbilityKit';
-import { curves, promptAction } from '@kit.ArkUI';
+import { promptAction } from '@kit.ArkUI';
 import { vibrator } from '@kit.SensorServiceKit';
 import { VpnController, VpnStatus } from '../lib/VpnController';
 import { CoreApi, TrafficMsg, ProxyInfo, formatRate } from '../lib/CoreApi';
@@ -27,8 +27,6 @@ interface InfoCardParams {
   sub: string;
   /** 标题行前缀符号（可选） */
   symbol?: Resource;
-  /** 大数字样式（速率等：28fp Light，H7 §2） */
-  bigValue?: boolean;
   onTap?: () => void;
 }
 
@@ -356,13 +354,7 @@ export struct HomePage {
   }
 
   private async onModeChange(index: number): Promise<void> {
-    // H7：胶囊选中态弹性过渡（springMotion 0.555/0.53，250ms，纯视觉）
-    this.getUIContext().animateTo({
-      duration: 250,
-      curve: curves.springMotion(0.555, 0.53)
-    }, () => {
-      this.modeIndex = index;
-    });
+    this.modeIndex = index;
     const mode = MODE_VALUES[index];
     ModeBus.mode = mode;
     // 持久化用户选择：下次内核启动时由 :vpn 进程合并进配置
@@ -394,15 +386,13 @@ export struct HomePage {
             .fontColor([$r('sys.color.font_secondary')])
         }
         Text(params.title)
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
+          .fontSize(13)
           .fontColor($r('sys.color.font_secondary'))
       }
       .alignItems(VerticalAlign.Center)
       Text(params.value)
-        // H7：速率等大数字 28 细体；其余正文 14 Regular（本 SDK FontWeight 无 Light，用 Lighter）
-        .fontSize(params.bigValue ? 28 : 14)
-        .fontWeight(params.bigValue ? FontWeight.Lighter : FontWeight.Regular)
+        .fontSize(17)
+        .fontWeight(FontWeight.Medium)
         .fontColor($r('sys.color.font_primary'))
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -417,13 +407,11 @@ export struct HomePage {
     .alignItems(HorizontalAlign.Start)
     .padding(14)
     .width('100%')
-    // H7 列表行配方：半透明玻璃行 + 发丝线描边（列表行禁 blur，见 H7 §0）
-    .backgroundColor($r('app.color.glass_row'))
-    .borderRadius(16)
-    .border({ width: 1, color: $r('app.color.glass_border') })
+    .backgroundColor($r('sys.color.comp_background_primary'))
+    .borderRadius(12)
     .stateStyles({
-      pressed: { .opacity(0.6) },
-      normal: { .opacity(1) }
+      pressed: { .backgroundColor($r('sys.color.comp_background_secondary')) },
+      normal: { .backgroundColor($r('sys.color.comp_background_primary')) }
     })
     .onClick(() => {
       if (params.onTap) {
@@ -433,160 +421,142 @@ export struct HomePage {
   }
 
   build() {
-    // H7：Stack 顶层叠加品牌弥散光（只影响视觉，不拦截触摸）
-    Stack({ alignContent: Alignment.Top }) {
-      Column({ space: 12 }) {
-        Column({ space: 4 }) {
-          Text('ClashOH')
-            .fontSize(30)
-            .fontWeight(FontWeight.Bold)
-            .fontColor($r('sys.color.font_primary'))
-          Text('mihomo 内核 · 纯血鸿蒙')
-            .fontSize(12)
-            .fontColor($r('sys.color.font_tertiary'))
+    Column({ space: 12 }) {
+      Column({ space: 4 }) {
+        Text('ClashOH')
+          .fontSize(26)
+          .fontWeight(FontWeight.Bold)
+          .fontColor($r('sys.color.font_primary'))
+        Text('mihomo 内核 · 纯血鸿蒙')
+          .fontSize(12)
+          .fontColor($r('sys.color.font_tertiary'))
+      }
+      .alignItems(HorizontalAlign.Start)
+      .width('100%')
+      .margin({ top: 8, bottom: 4 })
+
+      Column({ space: 14 }) {
+        Stack() {
+          Circle()
+            .width(148)
+            .height(148)
+            .fill(this.ringColor())
+            .opacity(this.status === VpnStatus.Disconnected ? 0.5 : 1)
+          SymbolGlyph($r('sys.symbol.power'))
+            .fontSize(48)
+            .fontColor([Color.White])
         }
-        .alignItems(HorizontalAlign.Start)
-        .width('100%')
-        .margin({ top: 8, bottom: 4 })
-
-        Column({ space: 14 }) {
-          Stack() {
-            Circle()
-              .width(148)
-              .height(148)
-              .fill(this.ringColor())
-              .opacity(this.status === VpnStatus.Disconnected ? 0.5 : 1)
-            SymbolGlyph($r('sys.symbol.power'))
-              .fontSize(48)
-              .fontColor([Color.White])
-          }
-          .width(148)
-          .height(148)
-          .scale({ x: this.pulse, y: this.pulse })
-          .stateStyles({
-            pressed: { .opacity(0.6) },
-            normal: { .opacity(1) }
-          })
-          .onClick(() => this.onRingClick())
-
-          Text(this.statusLabel())
-            .fontSize(17)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('sys.color.font_primary'))
-          Text(this.status === VpnStatus.Connected ?
-            `${MODE_LABELS[this.modeIndex]}模式 · ${this.uptime.length > 0 ? this.uptime : '运行中'}` : '轻点圆环启动')
-            .fontSize(13)
-            .fontColor($r('sys.color.font_secondary'))
-
-          // 模式切换（H7：容器 20 圆角胶囊，选中 chip 8 圆角品牌底白字）
-          Row({ space: 0 }) {
-            ForEach(MODE_LABELS, (label: string, index: number) => {
-              Text(label)
-                .fontSize(13)
-                .fontColor(this.modeIndex === index ? Color.White : $r('sys.color.font_secondary'))
-                .backgroundColor(this.modeIndex === index ? $r('sys.color.brand') : Color.Transparent)
-                .borderRadius(8)
-                .padding({ top: 6, bottom: 6, left: 20, right: 20 })
-                .stateStyles({
-                  pressed: { .opacity(0.6) },
-                  normal: { .opacity(1) }
-                })
-                .onClick(() => {
-                  this.onModeChange(index);
-                })
-            }, (label: string) => label)
-          }
-          .backgroundColor($r('sys.color.comp_background_secondary'))
-          .borderRadius(20)
-          .padding(2)
-        }
-        .width('100%')
-        .padding({ top: 16, bottom: 16 })
-        // H7 玻璃主卡配方（真玻璃仅用于一级页顶部主卡，见 H7 §0；backgroundEffect @since 11）
-        .backgroundEffect({ radius: 24, saturation: 1.7, brightness: 1.06, color: $r('app.color.glass_bg') })
-        .borderRadius(20)
-        .border({ width: 1, color: $r('app.color.glass_border') })
-        .shadow({ radius: 16, color: '#1F000000', offsetX: 0, offsetY: 6 })
-
-        Row({ space: 12 }) {
-          Column() {
-            this.InfoCard({ title: '上行', value: this.upRate, sub: '', symbol: $r('sys.symbol.arrow_up'), bigValue: true })
-          }
-          .layoutWeight(1)
-          Column() {
-            this.InfoCard({ title: '下行', value: this.downRate, sub: '', symbol: $r('sys.symbol.arrow_down'), bigValue: true })
-          }
-          .layoutWeight(1)
-        }
-        .width('100%')
-
-        this.InfoCard({
-          title: '代理节点',
-          value: this.currentNode,
-          sub: MODE_VALUES[this.modeIndex] === 'direct' ? '直连模式 · 不使用代理' :
-            (this.mainGroup.length > 0 ? `${this.mainGroup} · 点击切换` : '代理 Tab 中切换'),
-          onTap: () => {
-            // 跳到代理 Tab 并直达主分组的节点选择页；记忆本次进入的主分组
-            this.tabJump = 1;
-            if (this.mainGroup.length > 0) {
-              const context = getContext(this) as common.UIAbilityContext;
-              const s = Settings.load(context);
-              s.mainGroup = this.mainGroup;
-              Settings.save(context, s);
-              ProxyGroupBus.current = this.mainGroup;
-              this.navStack.pushPath({ name: 'proxyGroup' });
-            }
-          }
+        .width(148)
+        .height(148)
+        .scale({ x: this.pulse, y: this.pulse })
+        .stateStyles({
+          pressed: { .opacity(0.6) },
+          normal: { .opacity(1) }
         })
-        if (this.hasProfile) {
-          this.InfoCard({
-            title: '当前配置',
-            value: this.profileName,
-            sub: '点击管理',
-            onTap: () => {
-              this.tabJump = 2;
-            }
-          })
-        } else {
-          Column({ space: 6 }) {
-            Text('还没有订阅配置')
-              .fontSize(15)
-              .fontWeight(FontWeight.Medium)
-              .fontColor($r('sys.color.font_primary'))
-            Text('点这里去「配置」页导入（订阅 URL / 本地文件）')
-              .fontSize(12)
-              .fontColor($r('sys.color.font_secondary'))
-          }
-          .alignItems(HorizontalAlign.Start)
-          .padding(14)
-          .width('100%')
-          // H7 列表行配方：半透明玻璃行 + 发丝线描边
-          .backgroundColor($r('app.color.glass_row'))
-          .borderRadius(16)
-          .border({ width: 1, color: $r('app.color.glass_border') })
-          .stateStyles({
-            pressed: { .opacity(0.6) },
-            normal: { .opacity(1) }
-          })
-          .onClick(() => {
-            this.tabJump = 2;
-          })
+        .onClick(() => this.onRingClick())
+
+        Text(this.statusLabel())
+          .fontSize(17)
+          .fontWeight(FontWeight.Medium)
+          .fontColor($r('sys.color.font_primary'))
+        Text(this.status === VpnStatus.Connected ?
+          `${MODE_LABELS[this.modeIndex]}模式 · ${this.uptime.length > 0 ? this.uptime : '运行中'}` : '轻点圆环启动')
+          .fontSize(13)
+          .fontColor($r('sys.color.font_secondary'))
+
+        // 模式切换
+        Row({ space: 0 }) {
+          ForEach(MODE_LABELS, (label: string, index: number) => {
+            Text(label)
+              .fontSize(13)
+              .fontColor(this.modeIndex === index ? Color.White : $r('sys.color.font_secondary'))
+              .backgroundColor(this.modeIndex === index ? $r('sys.color.brand') : Color.Transparent)
+              .borderRadius(14)
+              .padding({ top: 6, bottom: 6, left: 20, right: 20 })
+              .stateStyles({
+                pressed: { .opacity(0.6) },
+                normal: { .opacity(1) }
+              })
+              .onClick(() => {
+                this.onModeChange(index);
+              })
+          }, (label: string, index: number) => label + (this.modeIndex === index ? '|on' : '|off'))
         }
+        .backgroundColor($r('sys.color.comp_background_secondary'))
+        .borderRadius(16)
+        .padding(2)
       }
       .width('100%')
-      .height('100%')
-      // H7：底部留白 ≥76（TabBar 48 悬浮 + 系统导航条 28 避让）
-      .padding({ left: 16, right: 16, bottom: 76 })
-      .backgroundColor($r('sys.color.background_secondary'))
+      .padding({ top: 20, bottom: 20 })
+      .backgroundColor($r('sys.color.comp_background_primary'))
+      .borderRadius(16)
 
-      // H7 弥散光：顶部 200vp 品牌光晕，由 8% 淡出到全透明（纯视觉，不拦截触摸）
-      Column()
+      Row({ space: 12 }) {
+        Column() {
+          this.InfoCard({ title: '上行', value: this.upRate, sub: '', symbol: $r('sys.symbol.arrow_up') })
+        }
+        .layoutWeight(1)
+        Column() {
+          this.InfoCard({ title: '下行', value: this.downRate, sub: '', symbol: $r('sys.symbol.arrow_down') })
+        }
+        .layoutWeight(1)
+      }
+      .width('100%')
+
+      this.InfoCard({
+        title: '代理节点',
+        value: this.currentNode,
+        sub: MODE_VALUES[this.modeIndex] === 'direct' ? '直连模式 · 不使用代理' :
+          (this.mainGroup.length > 0 ? `${this.mainGroup} · 点击切换` : '代理 Tab 中切换'),
+        onTap: () => {
+          // 跳到代理 Tab 并直达主分组的节点选择页；记忆本次进入的主分组
+          this.tabJump = 1;
+          if (this.mainGroup.length > 0) {
+            const context = getContext(this) as common.UIAbilityContext;
+            const s = Settings.load(context);
+            s.mainGroup = this.mainGroup;
+            Settings.save(context, s);
+            ProxyGroupBus.current = this.mainGroup;
+            this.navStack.pushPath({ name: 'proxyGroup' });
+          }
+        }
+      })
+      if (this.hasProfile) {
+        this.InfoCard({
+          title: '当前配置',
+          value: this.profileName,
+          sub: '点击管理',
+          onTap: () => {
+            this.tabJump = 2;
+          }
+        })
+      } else {
+        Column({ space: 6 }) {
+          Text('还没有订阅配置')
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .fontColor($r('sys.color.font_primary'))
+          Text('点这里去「配置」页导入（订阅 URL / 本地文件）')
+            .fontSize(12)
+            .fontColor($r('sys.color.font_secondary'))
+        }
+        .alignItems(HorizontalAlign.Start)
+        .padding(14)
         .width('100%')
-        .height(200)
-        .linearGradient({ angle: 180, colors: [[$r('app.color.glow_brand'), 1.0], [$r('app.color.glow_brand'), 0.0]] })
-        .hitTestBehavior(HitTestMode.None)
+        .backgroundColor($r('sys.color.comp_background_primary'))
+        .borderRadius(12)
+        .stateStyles({
+          pressed: { .backgroundColor($r('sys.color.comp_background_secondary')) },
+          normal: { .backgroundColor($r('sys.color.comp_background_primary')) }
+        })
+        .onClick(() => {
+          this.tabJump = 2;
+        })
+      }
     }
     .width('100%')
     .height('100%')
+    .padding({ left: 16, right: 16 })
+    .backgroundColor($r('sys.color.background_secondary'))
   }
 }

@@ -22,7 +22,7 @@ export struct AboutPage {
     Column({ space: 12 }) {
       Column({ space: 6 }) {
         Text('ClashOH')
-          .fontSize(24)
+          .fontSize(22)
           .fontWeight(FontWeight.Bold)
           .fontColor($r('sys.color.font_primary'))
         Text('mihomo 内核 v1.19.29 · HarmonyOS NEXT')
@@ -32,10 +32,8 @@ export struct AboutPage {
       .alignItems(HorizontalAlign.Start)
       .width('100%')
       .padding(20)
-      .backgroundEffect({ radius: 24, saturation: 1.7, brightness: 1.06, color: $r('app.color.glass_bg') })
-      .borderRadius(20)
-      .border({ width: 1, color: $r('app.color.glass_border') })
-      .shadow({ radius: 16, color: '#1F000000', offsetX: 0, offsetY: 6 })
+      .backgroundColor($r('sys.color.comp_background_primary'))
+      .borderRadius(16)
 
       Column({ space: 0 }) {
         Row() {
@@ -73,9 +71,8 @@ export struct AboutPage {
         .padding(16)
       }
       .width('100%')
-      .backgroundColor($r('app.color.glass_row'))
+      .backgroundColor($r('sys.color.comp_background_primary'))
       .borderRadius(16)
-      .border({ width: 1, color: $r('app.color.glass_border') })
 
       Text('仅供学习交流。侧载分发，不上架。')
         .fontSize(12)

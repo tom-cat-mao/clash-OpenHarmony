@@ -77,7 +77,7 @@ export struct NetworkSettingsPage {
       Row({ space: 12 }) {
         Button('取消')
           .layoutWeight(1)
-          .backgroundColor($r('app.color.glass_row'))
+          .backgroundColor($r('sys.color.comp_background_tertiary'))
           .fontColor($r('sys.color.font_primary'))
           .onClick(() => {
             this.showAddDialog = false;
@@ -98,8 +98,8 @@ export struct NetworkSettingsPage {
       .width('100%')
     }
     .padding(20)
-    .backgroundColor($r('app.color.glass_bg_strong'))
-    .borderRadius({ topLeft: 32, topRight: 32 })
+    .backgroundColor($r('sys.color.comp_background_primary'))
+    .borderRadius(16)
   }
 
   build() {
@@ -112,9 +112,8 @@ export struct NetworkSettingsPage {
         })
       }
       .width('100%')
-      .backgroundColor($r('app.color.glass_row'))
+      .backgroundColor($r('sys.color.comp_background_primary'))
       .borderRadius(16)
-      .border({ width: 1, color: $r('app.color.glass_border') })
 
       Column({ space: 0 }) {
         Row() {
@@ -133,7 +132,7 @@ export struct NetworkSettingsPage {
               .fontWeight(this.accessIndex === index ? FontWeight.Medium : FontWeight.Regular)
               .fontColor(this.accessIndex === index ? Color.White : $r('sys.color.font_secondary'))
               .backgroundColor(this.accessIndex === index ? $r('sys.color.brand') : Color.Transparent)
-              .borderRadius(8)
+              .borderRadius(14)
               .padding({ top: 6, bottom: 6, left: 14, right: 14 })
               .stateStyles({
                 pressed: { .opacity(0.6) },
@@ -147,48 +146,40 @@ export struct NetworkSettingsPage {
           }, (label: string) => label)
         }
         .backgroundColor($r('sys.color.comp_background_secondary'))
-        .borderRadius(20)
+        .borderRadius(16)
         .padding(2)
         .margin({ left: 14, right: 14, bottom: 8 })
 
         if (this.accessIndex > 0) {
-          ForEach(this.accessList, (pkg: string, index: number) => {
-            Column() {
+          ForEach(this.accessList, (pkg: string) => {
+            Row() {
+              Text(pkg)
+                .fontSize(15)
+                .fontWeight(FontWeight.Medium)
+                .fontColor($r('sys.color.font_primary'))
+                .layoutWeight(1)
+                .maxLines(1)
+                .textOverflow({ overflow: TextOverflow.Ellipsis })
               Row() {
-                Text(pkg)
-                  .fontSize(15)
-                  .fontWeight(FontWeight.Medium)
-                  .fontColor($r('sys.color.font_primary'))
-                  .layoutWeight(1)
-                  .maxLines(1)
-                  .textOverflow({ overflow: TextOverflow.Ellipsis })
-                Row() {
-                  SymbolGlyph($r('sys.symbol.xmark'))
-                    .fontSize(16)
-                    .fontColor([$r('sys.color.font_tertiary')])
-                }
-                .width(40)
-                .height(40)
-                .justifyContent(FlexAlign.Center)
-                .margin({ left: 8 })
-                .stateStyles({
-                  pressed: { .opacity(0.6) },
-                  normal: { .opacity(1.0) }
-                })
-                .onClick(() => {
-                  this.accessList = this.accessList.filter((x) => x !== pkg);
-                  this.persist();
-                })
+                SymbolGlyph($r('sys.symbol.xmark'))
+                  .fontSize(16)
+                  .fontColor([$r('sys.color.font_tertiary')])
               }
-              .width('100%')
-              .padding({ top: 10, bottom: 10, left: 14, right: 6 })
-              if (index < this.accessList.length - 1) {
-                Divider()
-                  .color($r('sys.color.comp_divider'))
-                  .margin({ left: 14 })
-              }
+              .width(40)
+              .height(40)
+              .justifyContent(FlexAlign.Center)
+              .margin({ left: 8 })
+              .stateStyles({
+                pressed: { .opacity(0.6) },
+                normal: { .opacity(1.0) }
+              })
+              .onClick(() => {
+                this.accessList = this.accessList.filter((x) => x !== pkg);
+                this.persist();
+              })
             }
             .width('100%')
+            .padding({ top: 2, bottom: 2, left: 14, right: 6 })
           }, (pkg: string) => pkg)
 
           Row({ space: 6 }) {
@@ -211,9 +202,8 @@ export struct NetworkSettingsPage {
         }
       }
       .width('100%')
-      .backgroundColor($r('app.color.glass_row'))
+      .backgroundColor($r('sys.color.comp_background_primary'))
       .borderRadius(16)
-      .border({ width: 1, color: $r('app.color.glass_border') })
 
       Text('鸿蒙不允许普通应用枚举已安装列表，故按应用分流使用手动包名名单。本应用自身始终直连。')
         .fontSize(12)

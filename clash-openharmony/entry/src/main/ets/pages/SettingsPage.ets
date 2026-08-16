@@ -2,7 +2,6 @@
  * SettingsPage.ets - 设置页（DESIGN.md §5 右）
  * 分组卡片列表（运行/连接/自动化/诊断/关于，每组带标题）
  * 二级页导航（Navigation pushPath）+ Toggle（保活/自动恢复/订阅自动更新/内核日志落盘）
- * 视觉：H7 沉浸光感 — 分组卡玻璃行配方 + 顶部品牌弥散光 + 大标题 30 Bold
  */
 import { common } from '@kit.AbilityKit';
 import { promptAction } from '@kit.ArkUI';
@@ -195,8 +194,7 @@ export struct SettingsPage {
     Row() {
       Column({ space: 4 }) {
         Text(row.title)
-          .fontSize(16)
-          .fontWeight(FontWeight.Medium)
+          .fontSize(15)
           .fontColor($r('sys.color.font_primary'))
         if (row.sub.length > 0) {
           Text(row.sub)
@@ -251,55 +249,40 @@ export struct SettingsPage {
       }, (row: SettingRow) => row.title)
     }
     .width('100%')
-    .backgroundColor($r('app.color.glass_row'))
-    .borderRadius(16)
-    .border({ width: 1, color: $r('app.color.glass_border') })
+    .backgroundColor($r('sys.color.comp_background_primary'))
+    .borderRadius(12)
   }
 
   build() {
-    Stack({ alignContent: Alignment.TopStart }) {
-      Column({ space: 12 }) {
-        Text('设置')
-          .fontSize(30)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('sys.color.font_primary'))
-          .width('100%')
-          .margin({ top: 8, bottom: 4 })
-
-        List({ space: 12 }) {
-          ForEach(this.groups, (group: SettingGroup) => {
-            ListItem() {
-              Column({ space: 7 }) {
-                Text(group.title)
-                  .fontSize(12)
-                  .fontColor($r('sys.color.font_tertiary'))
-                  .width('100%')
-                  .margin({ left: 4 })
-                this.GroupCard(group)
-              }
-            }
-          }, (group: SettingGroup) => group.title)
-        }
+    Column({ space: 12 }) {
+      Text('设置')
+        .fontSize(26)
+        .fontWeight(FontWeight.Bold)
+        .fontColor($r('sys.color.font_primary'))
         .width('100%')
-        .layoutWeight(1)
-        .scrollBar(BarState.Off)
+        .margin({ top: 8, bottom: 4 })
+
+      List({ space: 12 }) {
+        ForEach(this.groups, (group: SettingGroup) => {
+          ListItem() {
+            Column({ space: 7 }) {
+              Text(group.title)
+                .fontSize(13)
+                .fontColor($r('sys.color.font_secondary'))
+                .width('100%')
+                .margin({ left: 4 })
+              this.GroupCard(group)
+            }
+          }
+        }, (group: SettingGroup) => group.title)
       }
       .width('100%')
-      .height('100%')
-      .padding({ left: 16, right: 16, bottom: 76 })
-      // 顶部品牌弥散光：8% 主色自上而下弥散（H7_DESIGN §3），纯视觉叠加、不拦截触摸
-      Column()
-        .width('100%')
-        .height(200)
-        .linearGradient({
-          angle: 180,
-          colors: [[$r('app.color.glow_brand'), 1.0], [$r('app.color.glow_brand'), 0.0]]
-        })
-        .position({ x: 0, y: 0 })
-        .hitTestBehavior(HitTestMode.Transparent)
+      .layoutWeight(1)
+      .scrollBar(BarState.Off)
     }
     .width('100%')
     .height('100%')
+    .padding({ left: 16, right: 16 })
     .backgroundColor($r('sys.color.background_secondary'))
   }
 }
