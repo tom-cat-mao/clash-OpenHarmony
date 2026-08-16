@@ -51,11 +51,15 @@ interface CoreConfig {
   tun: CoreTunConfig;
 }
 
-/** 设置页用户覆写（键名与 Settings.ets 一致，Go 侧做驼峰->kebab 映射） */
+/** 设置页用户覆写（键名与 Settings.ets 一致，Go 侧做驼峰->kebab 映射）；
+ *  mode 为空串=用户未显式选择，Go 侧跳过，沿用订阅配置自带 mode */
 interface UserOverrides {
   mixedPort: number;
   logLevel: string;
   allowLan: boolean;
+  mode: string;
+  /** 内核日志是否落盘 mihomo.log（false=仅系统 hilog；wrapper 消费，不进 mihomo 配置） */
+  logToFile: boolean;
 }
 
 export default class ClashVpnAbility extends VpnExtensionAbility {
@@ -108,10 +112,12 @@ export default class ClashVpnAbility extends VpnExtensionAbility {
       const overrides: UserOverrides = {
         mixedPort: s.mixedPort,
         logLevel: s.logLevel,
-        allowLan: s.allowLan
+        allowLan: s.allowLan,
+        mode: s.mode,
+        logToFile: s.logToFile
       };
       Logger.info(TAG,
-        `user overrides: mixedPort=${s.mixedPort} logLevel=${s.logLevel} allowLan=${s.allowLan}`);
+        `user overrides: mixedPort=${s.mixedPort} logLevel=${s.logLevel} allowLan=${s.allowLan} mode=${s.mode} logToFile=${s.logToFile}`);
       const startErr: string = await core.startTun(fd, cfg, JSON.stringify(overrides));
       if (startErr) {
         Logger.error(TAG, `startTun failed: ${startErr}`);

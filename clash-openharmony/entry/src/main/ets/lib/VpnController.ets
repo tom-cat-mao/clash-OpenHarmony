@@ -111,15 +111,25 @@ export namespace VpnController {
     return msg;
   }
 
-  /** 冷启动恢复：UI 进程重建后探测内核是否仍在（REST 通则 VPN 活着） */
-  export function recover(): void {
+  /**
+   * 冷启动恢复：UI 进程重建后探测内核是否仍在（REST 通则 VPN 活着）。
+   * 可选完成回调 onDone(alive)：探活落定后（含非断开态早退场景）回调，供调用方在
+   * 「真实状态已确认」之后再决策（如卡片点击 toggle 需先探活再定启停，见 EntryAbility）。
+   */
+  export function recover(onDone?: (alive: boolean) => void): void {
     if (status !== VpnStatus.Disconnected) {
+      if (onDone !== undefined) {
+        onDone(status === VpnStatus.Connected);
+      }
       return;
     }
     CoreApi.isAlive().then((alive: boolean) => {
       if (alive && status === VpnStatus.Disconnected) {
         Logger.info(TAG, 'recover: core alive, status -> Connected');
         setStatus(VpnStatus.Connected);
+      }
+      if (onDone !== undefined) {
+        onDone(alive);
       }
     });
   }

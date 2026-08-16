@@ -8,12 +8,14 @@ import { vibrator } from '@kit.SensorServiceKit';
 import { VpnController, VpnStatus } from '../lib/VpnController';
 import { CoreApi, TrafficMsg, ProxyInfo, formatRate } from '../lib/CoreApi';
 import { ProfileStore } from '../lib/ProfileStore';
+import { ProxyData, ModeBus } from '../lib/ProxyData';
 import { ProxyGroupBus } from './ProxyGroupPage';
 import { Settings } from '../lib/Settings';
 import { LiveViewKeeper } from '../lib/LiveViewKeeper';
 import { AutoUpdater } from '../lib/AutoUpdater';
 import { CardSync } from '../lib/CardSync';
 import { Logger } from '../lib/Logger';
+import { H7, matHero, matCard, matFloat, tabBarSafePad } from '../lib/H7';
 
 const TAG = 'home';
 
@@ -82,19 +84,33 @@ export struct HomePage {
         // （无 UI 后台态也保证刷新），此处不再重复调用 CardSync
       });
     }
-    VpnController.recover();
-    LiveViewKeeper.ensure(getContext(this) as common.UIAbilityContext);
+    const context = getContext(this) as common.UIAbilityContext;
+    // v1.2：先 REST 探活校正真实状态，探活落定后再同步卡片——避免探活前 sync 用新进程的
+    // Disconnected 把「VPN 实际仍在」的文件状态误写成 disconnected（recover 置 Connected
+    // 时 onChanged 会再触发一次 sync，此处兜底探活失败场景）
+    VpnController.recover(() => {
+      CardSync.sync(context).catch(() => {
+        // 卡片同步失败不影响主流程
+      });
+    });
+    LiveViewKeeper.ensure(context);
     if (this.status === VpnStatus.Connected) {
       this.onCoreUp();
     }
-    const context = getContext(this) as common.UIAbilityContext;
     const active = ProfileStore.getActiveFile(context);
     this.hasProfile = active.length > 0;
     this.profileName = this.hasProfile ? active.replace(/\.(yaml|yml)$/, '') : '未导入';
-    // 卡片状态初次同步（进程重建后卡片可能停留在旧文案；sync 会顺带刷新共享文件状态）
-    CardSync.sync(context).catch(() => {
-      // 卡片同步失败不影响主流程
-    });
+    // 恢复用户上次选择的模式（未选过则交由 refreshNode 从内核/配置推断）
+    const savedMode = Settings.load(context).mode;
+    const savedIdx = MODE_VALUES.indexOf(savedMode);
+    if (savedIdx >= 0) {
+      this.modeIndex = savedIdx;
+      ModeBus.mode = savedMode;
+    }
+    if (this.status !== VpnStatus.Connected) {
+      // 内核离线：用激活配置本地解析兜底，首页也能展示节点
+      this.refreshNode();
+    }
   }
 
   aboutToDisappear(): void {
@@ -197,25 +213,60 @@ export struct HomePage {
       const idx = MODE_VALUES.indexOf(cfg.mode);
       if (idx >= 0) {
         this.modeIndex = idx;
+        ModeBus.mode = cfg.mode;
       }
     }
   }
 
+  /**
+   * 刷新首页「代理节点」卡（按模式显示，内核在线读 REST、离线解析激活配置）：
+   * - rule：主分组（三级优先级判定的 Selector）当前出口；
+   * - global：内核固定走 GLOBAL 组，显示 GLOBAL 当前出口；
+   * - direct：全部流量直连，不显示节点。
+   */
   private async refreshNode(): Promise<void> {
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const proxies = await CoreApi.getProxies();
-      if (proxies) {
-        const context = getContext(this) as common.UIAbilityContext;
-        const names = Object.keys(proxies);
-        // 主分组判定（三级优先级，命中后回写 Settings 覆盖旧记忆）：
-        // 1) 名字匹配：组名包含「节点选择/手动选择/节点」的非 GLOBAL Selector；
-        // 2) Settings 记忆的组：非空、仍存在、Selector 且非 GLOBAL；
-        // 3) 兜底：第一个非 GLOBAL 的 Selector。
-        const s = Settings.load(context);
-        const nameHits: string[] = ['节点选择', '手动选择', '节点'];
-        let chosen: string = '';
-        for (const name of names) {
-          const p: ProxyInfo = proxies[name];
+    const context = getContext(this) as common.UIAbilityContext;
+    const r = await ProxyData.load(context);
+    if (r.source === 'none') {
+      this.mainGroup = '';
+      this.currentNode = '直连';
+      return;
+    }
+    const proxies = r.proxies;
+    const idx = MODE_VALUES.indexOf(r.mode);
+    if (idx >= 0) {
+      this.modeIndex = idx;
+    }
+    ModeBus.mode = r.mode;
+    if (r.mode === 'direct') {
+      // 直连模式：所有流量走 DIRECT，不经过任何代理组
+      this.mainGroup = '';
+      this.currentNode = '直连';
+      return;
+    }
+    if (r.mode === 'global') {
+      // 全局模式：内核固定使用 GLOBAL 组（包含全部节点的特殊选择组）
+      const g = proxies['GLOBAL'];
+      if (g !== undefined) {
+        this.mainGroup = 'GLOBAL';
+        this.currentNode = g.now.length === 0 || g.now === 'DIRECT' || g.now === 'REJECT' ? '直连' : g.now;
+      } else {
+        this.mainGroup = '';
+        this.currentNode = '直连';
+      }
+      return;
+    }
+    // 规则模式：主分组判定（三级优先级，命中后回写 Settings 覆盖旧记忆）：
+    // 1) 名字匹配：组名包含「节点选择/手动选择/节点」的非 GLOBAL Selector；
+    // 2) Settings 记忆的组：非空、仍存在、Selector 且非 GLOBAL；
+    // 3) 兜底：第一个非 GLOBAL 的 Selector。
+    {
+      const names = Object.keys(proxies);
+      const s = Settings.load(context);
+      const nameHits: string[] = ['节点选择', '手动选择', '节点'];
+      let chosen: string = '';
+      for (const name of names) {
+        const p: ProxyInfo = proxies[name];
           if (p.type === 'Selector' && name !== 'GLOBAL') {
             let matched: boolean = false;
             for (const hit of nameHits) {
@@ -257,15 +308,16 @@ export struct HomePage {
         }
         return;
       }
-      await new Promise<void>((resolve) => setTimeout(resolve, 1000));
-    }
   }
 
   private onTabVisible(): void {
     LiveViewKeeper.ensure(getContext(this) as common.UIAbilityContext);
-    if (this.currentVisibleTab === 0 && this.status === VpnStatus.Connected) {
+    if (this.currentVisibleTab === 0) {
+      // 节点卡始终刷新：内核在线读 REST，离线解析激活配置
       this.refreshNode();
-      this.refreshConfigs();
+      if (this.status === VpnStatus.Connected) {
+        this.refreshConfigs();
+      }
       const context = getContext(this) as common.UIAbilityContext;
       const active = ProfileStore.getActiveFile(context);
       this.hasProfile = active.length > 0;
@@ -304,14 +356,29 @@ export struct HomePage {
 
   private async onModeChange(index: number): Promise<void> {
     this.modeIndex = index;
-    const ok = await CoreApi.patchMode(MODE_VALUES[index]);
-    if (!ok) {
-      Logger.warn(TAG, 'patchMode failed');
+    const mode = MODE_VALUES[index];
+    ModeBus.mode = mode;
+    // 持久化用户选择：下次内核启动时由 :vpn 进程合并进配置
+    const context = getContext(this) as common.UIAbilityContext;
+    const s = Settings.load(context);
+    s.mode = mode;
+    Settings.save(context, s);
+    const alive = await CoreApi.isAlive();
+    if (alive) {
+      const ok = await CoreApi.patchMode(mode);
+      if (!ok) {
+        Logger.warn(TAG, 'patchMode failed');
+        promptAction.showToast({ message: '模式切换失败', duration: 2000 });
+      }
+    } else {
+      promptAction.showToast({ message: '已保存，启动内核后生效', duration: 2000 });
     }
+    // 立即按新模式刷新节点展示（内核在线读 REST，离线读本地配置）
+    this.refreshNode();
   }
 
   @Builder
-  InfoCard(params: InfoCardParams) {
+  InfoCardBody(params: InfoCardParams) {
     Column({ space: 6 }) {
       Row({ space: 4 }) {
         if (params.symbol !== undefined) {
@@ -325,7 +392,7 @@ export struct HomePage {
       }
       .alignItems(VerticalAlign.Center)
       Text(params.value)
-        .fontSize(17)
+        .fontSize(22)
         .fontWeight(FontWeight.Medium)
         .fontColor($r('sys.color.font_primary'))
         .maxLines(1)
@@ -341,47 +408,83 @@ export struct HomePage {
     .alignItems(HorizontalAlign.Start)
     .padding(14)
     .width('100%')
-    .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(12)
-    .stateStyles({
-      pressed: { .backgroundColor($r('sys.color.comp_background_secondary')) },
-      normal: { .backgroundColor($r('sys.color.comp_background_primary')) }
-    })
-    .onClick(() => {
-      if (params.onTap) {
-        params.onTap();
+  }
+
+  @Builder
+  InfoCard(params: InfoCardParams) {
+    if (H7) {
+      // 鸿蒙7：透明底 + THIN 系统材质（自带交互形变与光感反馈，无需 stateStyles）
+      Column() {
+        this.InfoCardBody(params)
       }
-    })
+      .width('100%')
+      .backgroundColor(Color.Transparent)
+      .borderRadius(16)
+      .systemMaterial(matCard())
+      .onClick(() => {
+        if (params.onTap) {
+          params.onTap();
+        }
+      })
+    } else {
+      Column() {
+        this.InfoCardBody(params)
+      }
+      .width('100%')
+      .backgroundColor($r('sys.color.comp_background_primary'))
+      .borderRadius(16)
+      .stateStyles({
+        pressed: { .backgroundColor($r('sys.color.comp_background_secondary')) },
+        normal: { .backgroundColor($r('sys.color.comp_background_primary')) }
+      })
+      .onClick(() => {
+        if (params.onTap) {
+          params.onTap();
+        }
+      })
+    }
   }
 
   build() {
-    Column({ space: 12 }) {
-      Column({ space: 4 }) {
-        Text('ClashOH')
-          .fontSize(26)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('sys.color.font_primary'))
-        Text('mihomo 内核 · 纯血鸿蒙')
-          .fontSize(12)
-          .fontColor($r('sys.color.font_tertiary'))
+    Stack() {
+      if (H7) {
+        // 鸿蒙7 空间感：顶部品牌弥散光（8% 蓝渐隐，glow_soft）
+        Column()
+          .width('100%')
+          .height(220)
+          .linearGradient({
+            angle: 180,
+            colors: [[$r('app.color.glow_soft'), 0.0], ['#00000000', 1.0]]
+          })
       }
-      .alignItems(HorizontalAlign.Start)
-      .width('100%')
-      .margin({ top: 8, bottom: 4 })
+      Column({ space: 12 }) {
+        Row() {
+          Text('ClashOH')
+            .fontSize(26)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('sys.color.font_primary'))
+        }
+        .width('100%')
+        .height(40)
+        .alignItems(VerticalAlign.Center)
+        .margin({ top: 8, bottom: 4 })
 
-      Column({ space: 14 }) {
+        // 鸿蒙7：标题固定在顶部（与其他页同一 Column 结构，位置一致），内容区可滚动
+        Scroll() {
+        Column({ space: 12 }) {
+        Column({ space: 10 }) {
         Stack() {
           Circle()
-            .width(148)
-            .height(148)
+            .width(128)
+            .height(128)
             .fill(this.ringColor())
             .opacity(this.status === VpnStatus.Disconnected ? 0.5 : 1)
           SymbolGlyph($r('sys.symbol.power'))
-            .fontSize(48)
+            .fontSize(44)
             .fontColor([Color.White])
         }
-        .width(148)
-        .height(148)
+        .width(128)
+        .height(128)
         .scale({ x: this.pulse, y: this.pulse })
         .stateStyles({
           pressed: { .opacity(0.6) },
@@ -398,14 +501,14 @@ export struct HomePage {
           .fontSize(13)
           .fontColor($r('sys.color.font_secondary'))
 
-        // 模式切换
+        // 模式切换（鸿蒙7：容器 ULTRA_THIN 材质 + 20 圆角胶囊）
         Row({ space: 0 }) {
           ForEach(MODE_LABELS, (label: string, index: number) => {
             Text(label)
               .fontSize(13)
               .fontColor(this.modeIndex === index ? Color.White : $r('sys.color.font_secondary'))
               .backgroundColor(this.modeIndex === index ? $r('sys.color.brand') : Color.Transparent)
-              .borderRadius(14)
+              .borderRadius(16)
               .padding({ top: 6, bottom: 6, left: 20, right: 20 })
               .stateStyles({
                 pressed: { .opacity(0.6) },
@@ -416,14 +519,17 @@ export struct HomePage {
               })
           }, (label: string, index: number) => label + (this.modeIndex === index ? '|on' : '|off'))
         }
-        .backgroundColor($r('sys.color.comp_background_secondary'))
-        .borderRadius(16)
+        .backgroundColor(H7 ? Color.Transparent : $r('sys.color.comp_background_secondary'))
+        .borderRadius(20)
+        .systemMaterial(matFloat())
         .padding(2)
       }
       .width('100%')
-      .padding({ top: 20, bottom: 20 })
-      .backgroundColor($r('sys.color.comp_background_primary'))
-      .borderRadius(16)
+      .padding({ top: 16, bottom: 16 })
+      // 鸿蒙7：主卡透明底 + REGULAR 系统材质 + 20 圆角；旧系统保持实卡 16
+      .backgroundColor(H7 ? Color.Transparent : $r('sys.color.comp_background_primary'))
+      .borderRadius(H7 ? 20 : 16)
+      .systemMaterial(matHero())
 
       Row({ space: 12 }) {
         Column() {
@@ -440,7 +546,8 @@ export struct HomePage {
       this.InfoCard({
         title: '代理节点',
         value: this.currentNode,
-        sub: this.mainGroup.length > 0 ? `${this.mainGroup} · 点击切换` : '代理 Tab 中切换',
+        sub: MODE_VALUES[this.modeIndex] === 'direct' ? '直连模式 · 不使用代理' :
+          (this.mainGroup.length > 0 ? `${this.mainGroup} · 点击切换` : '代理 Tab 中切换'),
         onTap: () => {
           // 跳到代理 Tab 并直达主分组的节点选择页；记忆本次进入的主分组
           this.tabJump = 1;
@@ -464,32 +571,63 @@ export struct HomePage {
           }
         })
       } else {
-        Column({ space: 6 }) {
-          Text('还没有订阅配置')
-            .fontSize(15)
-            .fontWeight(FontWeight.Medium)
-            .fontColor($r('sys.color.font_primary'))
-          Text('点这里去「配置」页导入（订阅 URL / 本地文件）')
-            .fontSize(12)
-            .fontColor($r('sys.color.font_secondary'))
+        if (H7) {
+          Column({ space: 6 }) {
+            Text('还没有订阅配置')
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('sys.color.font_primary'))
+            Text('点这里去「配置」页导入（订阅 URL / 本地文件）')
+              .fontSize(12)
+              .fontColor($r('sys.color.font_secondary'))
+          }
+          .alignItems(HorizontalAlign.Start)
+          .padding(14)
+          .width('100%')
+          .backgroundColor(Color.Transparent)
+          .borderRadius(16)
+          .systemMaterial(matCard())
+          .onClick(() => {
+            this.tabJump = 2;
+          })
+        } else {
+          Column({ space: 6 }) {
+            Text('还没有订阅配置')
+              .fontSize(15)
+              .fontWeight(FontWeight.Medium)
+              .fontColor($r('sys.color.font_primary'))
+            Text('点这里去「配置」页导入（订阅 URL / 本地文件）')
+              .fontSize(12)
+              .fontColor($r('sys.color.font_secondary'))
+          }
+          .alignItems(HorizontalAlign.Start)
+          .padding(14)
+          .width('100%')
+          .backgroundColor($r('sys.color.comp_background_primary'))
+          .borderRadius(16)
+          .stateStyles({
+            pressed: { .backgroundColor($r('sys.color.comp_background_secondary')) },
+            normal: { .backgroundColor($r('sys.color.comp_background_primary')) }
+          })
+          .onClick(() => {
+            this.tabJump = 2;
+          })
         }
-        .alignItems(HorizontalAlign.Start)
-        .padding(14)
+        }
+        }
         .width('100%')
-        .backgroundColor($r('sys.color.comp_background_primary'))
-        .borderRadius(12)
-        .stateStyles({
-          pressed: { .backgroundColor($r('sys.color.comp_background_secondary')) },
-          normal: { .backgroundColor($r('sys.color.comp_background_primary')) }
-        })
-        .onClick(() => {
-          this.tabJump = 2;
-        })
+        .padding({ bottom: tabBarSafePad() })
+        }
+        .layoutWeight(1)
+        .scrollBar(BarState.Off)
+        .align(Alignment.Top)
       }
+      .width('100%')
+      .height('100%')
+      .padding({ left: 16, right: 16 })
     }
     .width('100%')
     .height('100%')
-    .padding({ left: 16, right: 16 })
     .backgroundColor($r('sys.color.background_secondary'))
   }
 }

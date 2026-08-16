@@ -7,6 +7,7 @@ import { promptAction } from '@kit.ArkUI';
 import { ProfileStore } from '../lib/ProfileStore';
 import { CoreApi } from '../lib/CoreApi';
 import { Logger } from '../lib/Logger';
+import { H7, sheetOptions } from '../lib/H7';
 
 const TAG = 'profileEdit';
 
@@ -132,8 +133,9 @@ export struct ProfileEditPage {
       .width('100%')
     }
     .padding(20)
-    .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(16)
+    // 鸿蒙7：sheet 内容根容器透明，露出底层 ULTRA_THICK 系统材质
+    .backgroundColor(H7 ? Color.Transparent : $r('sys.color.comp_background_primary'))
+    .borderRadius(H7 ? 0 : 16)
   }
 
   build() {
@@ -199,6 +201,6 @@ export struct ProfileEditPage {
     .height('100%')
     .padding({ left: 16, right: 16 })
     .backgroundColor($r('sys.color.background_secondary'))
-    .bindSheet($$this.showSaveAsSheet, this.SaveAsSheet(), { height: SheetSize.MEDIUM })
+    .bindSheet($$this.showSaveAsSheet, this.SaveAsSheet(), sheetOptions())
   }
 }

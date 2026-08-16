@@ -85,6 +85,18 @@
 | TUN 栈选择器 | 砍掉（固定 gVisor） | 鸿蒙沙箱限制 |
 | find-process-mode | 砍掉（固定 off） | 沙箱拿不到进程信息 |
 
+## 6.5 模式语义（与 mihomo 内核一致）
+
+| 模式 | 内核行为（tunnel/mode 分派） | 首页「代理节点」卡 | 代理 Tab |
+|---|---|---|---|
+| 规则 rule | 按 rules 匹配代理组 | 主分组（Selector，三级优先级判定）当前出口 | 除 GLOBAL 外全部分组 |
+| 全局 global | 全部流量固定走 GLOBAL 组（mihomo 内置特殊选择组，含全部节点） | GLOBAL 组当前出口 | 仅 GLOBAL 组（标「全局出口」） |
+| 直连 direct | 全部流量走 DIRECT，规则不生效 | 「直连」 | 空态「直连模式」 |
+
+- 模式是用户级设置（Settings.mode）：用户选择后持久化，内核启动时由 :vpn 进程合并进配置（用户选择 > 订阅配置自带 mode > rule）；内核运行时 PATCH /configs 即时生效。
+- 代理数据源（ProxyData）：内核在线读 REST /proxies；内核离线解析激活配置（ConfigParser，仅展示所需字段，history 恒空、延迟=未测），代理页与首页在内核未启动时也能看到分组/节点；本地数据只读——切换/测速提示需先启动内核。
+- provider（proxy-providers）内的具体节点内核运行时才有，离线展示以 provider 名占位（类型 Provider）。
+
 ## 7. 交互与状态规范
 
 - ForEach 键值必须包含行内所有会变化的显示字段（ArkUI 键值复用机制，防列表不刷新）；

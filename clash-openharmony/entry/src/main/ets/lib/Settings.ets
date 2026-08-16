@@ -20,6 +20,8 @@ export class AppSettings {
   accessList: string[] = [];
   /** 首页主分组（用户从首页进入/自动判定的 Selector 名） */
   mainGroup: string = '';
+  /** 内核运行模式 rule|global|direct；空串=未显式选择，沿用激活配置自带 mode */
+  mode: string = '';
   /** 订阅自动更新开关 */
   autoUpdate: boolean = false;
   /** 自动更新间隔（小时） */
@@ -30,6 +32,10 @@ export class AppSettings {
   vpnWasConnected: boolean = false;
   /** 已添加服务卡片 formId 列表（JSON 字符串持久化，避免数组类型兼容问题） */
   cardFormIdsJson: string = '[]';
+  /** 代理组排序方式记忆：Map<组名, 0|1>（0=按名称, 1=按延迟升序）的 JSON 字符串 */
+  proxySortJson: string = '{}';
+  /** 内核日志是否写入应用沙箱 mihomo.log（默认开；关闭后仅进系统 hilog，下次启动内核生效） */
+  logToFile: boolean = true;
 }
 
 export namespace Settings {
@@ -54,11 +60,14 @@ export namespace Settings {
       s.accessMode = p.getSync('accessMode', 'all') as string;
       s.accessList = p.getSync('accessList', [] as string[]) as string[];
       s.mainGroup = p.getSync('mainGroup', '') as string;
+      s.mode = p.getSync('mode', '') as string;
       s.autoUpdate = p.getSync('autoUpdate', false) as boolean;
       s.autoUpdateIntervalHours = p.getSync('autoUpdateIntervalHours', 24) as number;
       s.autoRestore = p.getSync('autoRestore', true) as boolean;
       s.vpnWasConnected = p.getSync('vpnWasConnected', false) as boolean;
       s.cardFormIdsJson = p.getSync('cardFormIdsJson', '[]') as string;
+      s.proxySortJson = p.getSync('proxySortJson', '{}') as string;
+      s.logToFile = p.getSync('logToFile', true) as boolean;
     } catch (e) {
       Logger.error(TAG, `load failed: ${JSON.stringify(e)}`);
     }
@@ -76,11 +85,14 @@ export namespace Settings {
       p.putSync('accessMode', s.accessMode);
       p.putSync('accessList', s.accessList);
       p.putSync('mainGroup', s.mainGroup);
+      p.putSync('mode', s.mode);
       p.putSync('autoUpdate', s.autoUpdate);
       p.putSync('autoUpdateIntervalHours', s.autoUpdateIntervalHours);
       p.putSync('autoRestore', s.autoRestore);
       p.putSync('vpnWasConnected', s.vpnWasConnected);
       p.putSync('cardFormIdsJson', s.cardFormIdsJson);
+      p.putSync('proxySortJson', s.proxySortJson);
+      p.putSync('logToFile', s.logToFile);
       p.flush();
     } catch (e) {
       Logger.error(TAG, `save failed: ${JSON.stringify(e)}`);

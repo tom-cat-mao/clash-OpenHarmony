@@ -3,8 +3,12 @@
  * 节点网格点选（选中后自动返回）；搜索/排序/长按详情；子组卡片；自动组只读
  */
 import { CoreApi } from '../lib/CoreApi';
+import { ProxyData } from '../lib/ProxyData';
 import { promptAction } from '@kit.ArkUI';
 import { Logger } from '../lib/Logger';
+import { common } from '@kit.AbilityKit';
+import { Settings } from '../lib/Settings';
+import { H7, sheetOptions } from '../lib/H7';
 
 const TAG = 'proxyGroup';
 const TEST_URL = 'https://www.gstatic.com/generate_204';
@@ -46,20 +50,58 @@ export struct ProxyGroupPage {
   @State detailName: string = '';
   @State detailType: string = '';
   @State detailUdp: boolean = false;
+  @State detailUdpKnown: boolean = true;
   @State detailDelay: number = 0;
+  /** 数据来自本地配置解析（内核未启动）：只读展示，禁切换/测速 */
+  @State localSource: boolean = false;
 
   aboutToAppear(): void {
+    this.restoreSortMode();
     this.load();
   }
 
+  /** 进入页面时恢复该组记住的排序方式（0=按名称, 1=按延迟升序）；无记录或解析失败静默回退 0 */
+  private restoreSortMode(): void {
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const map = JSON.parse(Settings.load(context).proxySortJson) as Record<string, number>;
+      this.sortMode = map[ProxyGroupBus.current] === 1 ? 1 : 0;
+    } catch (e) {
+      Logger.warn(TAG, `restore sort mode failed, fallback to 0: ${JSON.stringify(e)}`);
+      this.sortMode = 0;
+    }
+  }
+
+  /** 切换排序后立即把该组的新值写回 Settings（读-改-写；解析失败重建空表，不抛异常） */
+  private saveSortMode(): void {
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const s = Settings.load(context);
+      let map: Record<string, number> = {};
+      try {
+        map = JSON.parse(s.proxySortJson) as Record<string, number>;
+      } catch (e) {
+        map = {};
+      }
+      map[ProxyGroupBus.current] = this.sortMode;
+      s.proxySortJson = JSON.stringify(map);
+      Settings.save(context, s);
+    } catch (e) {
+      Logger.warn(TAG, `save sort mode failed: ${JSON.stringify(e)}`);
+    }
+  }
+
   private async load(): Promise<void> {
-    const proxies = await CoreApi.getProxies();
-    if (!proxies) {
+    const context = getContext(this) as common.UIAbilityContext;
+    const r = await ProxyData.load(context);
+    const proxies = r.proxies;
+    this.localSource = r.source === 'local';
+    if (r.source === 'none') {
       this.loadFailed = true;
       return;
     }
     const g = proxies[ProxyGroupBus.current];
-    if (!g) {
+    if (g === undefined) {
       this.loadFailed = true;
       return;
     }
@@ -142,6 +184,11 @@ export struct ProxyGroupPage {
   }
 
   private onNodeTap(node: NodeView): void {
+    // 内核未启动：本地配置只读，切换要等内核起来
+    if (this.localSource) {
+      promptAction.showToast({ message: '内核未启动，启动后才能切换节点', duration: 1800 });
+      return;
+    }
     // 子组与普通节点一视同仁：点按 = 选为本组出口并返回（进入子组的入口在第一级组列表）
     if (this.groupType !== 'Selector') {
       promptAction.showToast({ message: '该分组为自动选择，不支持手动切换', duration: 1800 });
@@ -166,9 +213,14 @@ export struct ProxyGroupPage {
     this.detailName = node.name;
     this.detailType = node.type;
     this.detailUdp = false;
+    this.detailUdpKnown = !this.localSource;
     this.detailDelay = node.delay;
-    this.detailLoading = true;
+    this.detailLoading = !this.localSource;
     this.detailShow = true;
+    if (this.localSource) {
+      // 本地数据无 UDP/延迟信息，只展示类型，不再请求内核
+      return;
+    }
     CoreApi.getProxyDetail(node.name).then((p) => {
       if (p) {
         this.detailType = p.type;
@@ -185,6 +237,10 @@ export struct ProxyGroupPage {
   }
 
   private async testGroup(): Promise<void> {
+    if (this.localSource) {
+      promptAction.showToast({ message: '内核未启动，无法测速', duration: 1800 });
+      return;
+    }
     if (this.testing) {
       return;
     }
@@ -238,7 +294,7 @@ export struct ProxyGroupPage {
           .margin({ top: 6, bottom: 6 })
       } else {
         this.DetailRow('类型', this.detailType.length > 0 ? this.detailType : '未知')
-        this.DetailRow('UDP', this.detailUdp ? '支持' : '不支持')
+        this.DetailRow('UDP', this.detailUdpKnown ? (this.detailUdp ? '支持' : '不支持') : '未知')
         this.DetailRow('最近延迟', this.delayText(this.detailDelay))
       }
       Text('长按节点卡片可查看详情')
@@ -249,8 +305,9 @@ export struct ProxyGroupPage {
     .alignItems(HorizontalAlign.Start)
     .width('100%')
     .padding(20)
-    .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(16)
+    // 鸿蒙7：sheet 内容根容器透明，露出底层 ULTRA_THICK 系统材质
+    .backgroundColor(H7 ? Color.Transparent : $r('sys.color.comp_background_primary'))
+    .borderRadius(H7 ? 0 : 16)
   }
 
   build() {
@@ -297,9 +354,17 @@ export struct ProxyGroupPage {
         })
         .onClick(() => {
           this.sortMode = this.sortMode === 0 ? 1 : 0;
+          this.saveSortMode();
         })
       }
       .width('100%')
+
+      if (this.localSource) {
+        Text('内核未启动 · 仅展示激活配置中的节点')
+          .fontSize(12)
+          .fontColor($r('sys.color.font_tertiary'))
+          .width('100%')
+      }
 
       Search({ value: $$this.keyword, placeholder: '搜索节点' })
         .width('100%')
@@ -325,7 +390,9 @@ export struct ProxyGroupPage {
                     .fontSize(12)
                     .fontColor($r('sys.color.font_primary'))
                     .maxLines(1)
-                    .textOverflow({ overflow: TextOverflow.Ellipsis })
+                    // 名称超长时横向滚动（TextOverflow.MARQUEE：未溢出保持静态，溢出自动滚动；
+                    // 本 SDK 的 Text 无 .marquee() 属性，官方推荐用 MARQUEE 替代独立 Marquee 组件）
+                    .textOverflow({ overflow: TextOverflow.MARQUEE })
                     .layoutWeight(1)
                 }
                 .width('100%')
@@ -371,6 +438,6 @@ export struct ProxyGroupPage {
     .onSizeChange((_o: SizeOptions, n: SizeOptions) => {
       this.cols = Number(n.width) >= 600 ? 3 : 2;
     })
-    .bindSheet($$this.detailShow, this.NodeDetailSheet(), { height: SheetSize.MEDIUM })
+    .bindSheet($$this.detailShow, this.NodeDetailSheet(), sheetOptions())
   }
 }
