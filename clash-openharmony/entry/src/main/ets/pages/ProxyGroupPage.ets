@@ -3,8 +3,10 @@
  * 节点网格点选（选中后自动返回）；搜索/排序/长按详情；子组卡片；自动组只读
  */
 import { CoreApi } from '../lib/CoreApi';
+import { ProxyData } from '../lib/ProxyData';
 import { promptAction } from '@kit.ArkUI';
 import { Logger } from '../lib/Logger';
+import { common } from '@kit.AbilityKit';
 
 const TAG = 'proxyGroup';
 const TEST_URL = 'https://www.gstatic.com/generate_204';
@@ -46,20 +48,26 @@ export struct ProxyGroupPage {
   @State detailName: string = '';
   @State detailType: string = '';
   @State detailUdp: boolean = false;
+  @State detailUdpKnown: boolean = true;
   @State detailDelay: number = 0;
+  /** 数据来自本地配置解析（内核未启动）：只读展示，禁切换/测速 */
+  @State localSource: boolean = false;
 
   aboutToAppear(): void {
     this.load();
   }
 
   private async load(): Promise<void> {
-    const proxies = await CoreApi.getProxies();
-    if (!proxies) {
+    const context = getContext(this) as common.UIAbilityContext;
+    const r = await ProxyData.load(context);
+    const proxies = r.proxies;
+    this.localSource = r.source === 'local';
+    if (r.source === 'none') {
       this.loadFailed = true;
       return;
     }
     const g = proxies[ProxyGroupBus.current];
-    if (!g) {
+    if (g === undefined) {
       this.loadFailed = true;
       return;
     }
@@ -142,6 +150,11 @@ export struct ProxyGroupPage {
   }
 
   private onNodeTap(node: NodeView): void {
+    // 内核未启动：本地配置只读，切换要等内核起来
+    if (this.localSource) {
+      promptAction.showToast({ message: '内核未启动，启动后才能切换节点', duration: 1800 });
+      return;
+    }
     // 子组与普通节点一视同仁：点按 = 选为本组出口并返回（进入子组的入口在第一级组列表）
     if (this.groupType !== 'Selector') {
       promptAction.showToast({ message: '该分组为自动选择，不支持手动切换', duration: 1800 });
@@ -166,9 +179,14 @@ export struct ProxyGroupPage {
     this.detailName = node.name;
     this.detailType = node.type;
     this.detailUdp = false;
+    this.detailUdpKnown = !this.localSource;
     this.detailDelay = node.delay;
-    this.detailLoading = true;
+    this.detailLoading = !this.localSource;
     this.detailShow = true;
+    if (this.localSource) {
+      // 本地数据无 UDP/延迟信息，只展示类型，不再请求内核
+      return;
+    }
     CoreApi.getProxyDetail(node.name).then((p) => {
       if (p) {
         this.detailType = p.type;
@@ -185,6 +203,10 @@ export struct ProxyGroupPage {
   }
 
   private async testGroup(): Promise<void> {
+    if (this.localSource) {
+      promptAction.showToast({ message: '内核未启动，无法测速', duration: 1800 });
+      return;
+    }
     if (this.testing) {
       return;
     }
@@ -238,7 +260,7 @@ export struct ProxyGroupPage {
           .margin({ top: 6, bottom: 6 })
       } else {
         this.DetailRow('类型', this.detailType.length > 0 ? this.detailType : '未知')
-        this.DetailRow('UDP', this.detailUdp ? '支持' : '不支持')
+        this.DetailRow('UDP', this.detailUdpKnown ? (this.detailUdp ? '支持' : '不支持') : '未知')
         this.DetailRow('最近延迟', this.delayText(this.detailDelay))
       }
       Text('长按节点卡片可查看详情')
@@ -300,6 +322,13 @@ export struct ProxyGroupPage {
         })
       }
       .width('100%')
+
+      if (this.localSource) {
+        Text('内核未启动 · 仅展示激活配置中的节点')
+          .fontSize(12)
+          .fontColor($r('sys.color.font_tertiary'))
+          .width('100%')
+      }
 
       Search({ value: $$this.keyword, placeholder: '搜索节点' })
         .width('100%')

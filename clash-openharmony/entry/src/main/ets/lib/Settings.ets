@@ -20,6 +20,8 @@ export class AppSettings {
   accessList: string[] = [];
   /** 首页主分组（用户从首页进入/自动判定的 Selector 名） */
   mainGroup: string = '';
+  /** 内核运行模式 rule|global|direct；空串=未显式选择，沿用激活配置自带 mode */
+  mode: string = '';
   /** 订阅自动更新开关 */
   autoUpdate: boolean = false;
   /** 自动更新间隔（小时） */
@@ -54,6 +56,7 @@ export namespace Settings {
       s.accessMode = p.getSync('accessMode', 'all') as string;
       s.accessList = p.getSync('accessList', [] as string[]) as string[];
       s.mainGroup = p.getSync('mainGroup', '') as string;
+      s.mode = p.getSync('mode', '') as string;
       s.autoUpdate = p.getSync('autoUpdate', false) as boolean;
       s.autoUpdateIntervalHours = p.getSync('autoUpdateIntervalHours', 24) as number;
       s.autoRestore = p.getSync('autoRestore', true) as boolean;
@@ -76,6 +79,7 @@ export namespace Settings {
       p.putSync('accessMode', s.accessMode);
       p.putSync('accessList', s.accessList);
       p.putSync('mainGroup', s.mainGroup);
+      p.putSync('mode', s.mode);
       p.putSync('autoUpdate', s.autoUpdate);
       p.putSync('autoUpdateIntervalHours', s.autoUpdateIntervalHours);
       p.putSync('autoRestore', s.autoRestore);

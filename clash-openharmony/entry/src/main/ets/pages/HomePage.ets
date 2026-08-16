@@ -8,6 +8,7 @@ import { vibrator } from '@kit.SensorServiceKit';
 import { VpnController, VpnStatus } from '../lib/VpnController';
 import { CoreApi, TrafficMsg, ProxyInfo, formatRate } from '../lib/CoreApi';
 import { ProfileStore } from '../lib/ProfileStore';
+import { ProxyData, ModeBus } from '../lib/ProxyData';
 import { ProxyGroupBus } from './ProxyGroupPage';
 import { Settings } from '../lib/Settings';
 import { LiveViewKeeper } from '../lib/LiveViewKeeper';
@@ -91,6 +92,17 @@ export struct HomePage {
     const active = ProfileStore.getActiveFile(context);
     this.hasProfile = active.length > 0;
     this.profileName = this.hasProfile ? active.replace(/\.(yaml|yml)$/, '') : '未导入';
+    // 恢复用户上次选择的模式（未选过则交由 refreshNode 从内核/配置推断）
+    const savedMode = Settings.load(context).mode;
+    const savedIdx = MODE_VALUES.indexOf(savedMode);
+    if (savedIdx >= 0) {
+      this.modeIndex = savedIdx;
+      ModeBus.mode = savedMode;
+    }
+    if (this.status !== VpnStatus.Connected) {
+      // 内核离线：用激活配置本地解析兜底，首页也能展示节点
+      this.refreshNode();
+    }
     // 卡片状态初次同步（进程重建后卡片可能停留在旧文案；sync 会顺带刷新共享文件状态）
     CardSync.sync(context).catch(() => {
       // 卡片同步失败不影响主流程
@@ -197,25 +209,60 @@ export struct HomePage {
       const idx = MODE_VALUES.indexOf(cfg.mode);
       if (idx >= 0) {
         this.modeIndex = idx;
+        ModeBus.mode = cfg.mode;
       }
     }
   }
 
+  /**
+   * 刷新首页「代理节点」卡（按模式显示，内核在线读 REST、离线解析激活配置）：
+   * - rule：主分组（三级优先级判定的 Selector）当前出口；
+   * - global：内核固定走 GLOBAL 组，显示 GLOBAL 当前出口；
+   * - direct：全部流量直连，不显示节点。
+   */
   private async refreshNode(): Promise<void> {
-    for (let attempt = 0; attempt < 5; attempt++) {
-      const proxies = await CoreApi.getProxies();
-      if (proxies) {
-        const context = getContext(this) as common.UIAbilityContext;
-        const names = Object.keys(proxies);
-        // 主分组判定（三级优先级，命中后回写 Settings 覆盖旧记忆）：
-        // 1) 名字匹配：组名包含「节点选择/手动选择/节点」的非 GLOBAL Selector；
-        // 2) Settings 记忆的组：非空、仍存在、Selector 且非 GLOBAL；
-        // 3) 兜底：第一个非 GLOBAL 的 Selector。
-        const s = Settings.load(context);
-        const nameHits: string[] = ['节点选择', '手动选择', '节点'];
-        let chosen: string = '';
-        for (const name of names) {
-          const p: ProxyInfo = proxies[name];
+    const context = getContext(this) as common.UIAbilityContext;
+    const r = await ProxyData.load(context);
+    if (r.source === 'none') {
+      this.mainGroup = '';
+      this.currentNode = '直连';
+      return;
+    }
+    const proxies = r.proxies;
+    const idx = MODE_VALUES.indexOf(r.mode);
+    if (idx >= 0) {
+      this.modeIndex = idx;
+    }
+    ModeBus.mode = r.mode;
+    if (r.mode === 'direct') {
+      // 直连模式：所有流量走 DIRECT，不经过任何代理组
+      this.mainGroup = '';
+      this.currentNode = '直连';
+      return;
+    }
+    if (r.mode === 'global') {
+      // 全局模式：内核固定使用 GLOBAL 组（包含全部节点的特殊选择组）
+      const g = proxies['GLOBAL'];
+      if (g !== undefined) {
+        this.mainGroup = 'GLOBAL';
+        this.currentNode = g.now.length === 0 || g.now === 'DIRECT' || g.now === 'REJECT' ? '直连' : g.now;
+      } else {
+        this.mainGroup = '';
+        this.currentNode = '直连';
+      }
+      return;
+    }
+    // 规则模式：主分组判定（三级优先级，命中后回写 Settings 覆盖旧记忆）：
+    // 1) 名字匹配：组名包含「节点选择/手动选择/节点」的非 GLOBAL Selector；
+    // 2) Settings 记忆的组：非空、仍存在、Selector 且非 GLOBAL；
+    // 3) 兜底：第一个非 GLOBAL 的 Selector。
+    {
+      const names = Object.keys(proxies);
+      const s = Settings.load(context);
+      const nameHits: string[] = ['节点选择', '手动选择', '节点'];
+      let chosen: string = '';
+      for (const name of names) {
+        const p: ProxyInfo = proxies[name];
           if (p.type === 'Selector' && name !== 'GLOBAL') {
             let matched: boolean = false;
             for (const hit of nameHits) {
@@ -257,15 +304,16 @@ export struct HomePage {
         }
         return;
       }
-      await new Promise<void>((resolve) => setTimeout(resolve, 1000));
-    }
   }
 
   private onTabVisible(): void {
     LiveViewKeeper.ensure(getContext(this) as common.UIAbilityContext);
-    if (this.currentVisibleTab === 0 && this.status === VpnStatus.Connected) {
+    if (this.currentVisibleTab === 0) {
+      // 节点卡始终刷新：内核在线读 REST，离线解析激活配置
       this.refreshNode();
-      this.refreshConfigs();
+      if (this.status === VpnStatus.Connected) {
+        this.refreshConfigs();
+      }
       const context = getContext(this) as common.UIAbilityContext;
       const active = ProfileStore.getActiveFile(context);
       this.hasProfile = active.length > 0;
@@ -304,10 +352,25 @@ export struct HomePage {
 
   private async onModeChange(index: number): Promise<void> {
     this.modeIndex = index;
-    const ok = await CoreApi.patchMode(MODE_VALUES[index]);
-    if (!ok) {
-      Logger.warn(TAG, 'patchMode failed');
+    const mode = MODE_VALUES[index];
+    ModeBus.mode = mode;
+    // 持久化用户选择：下次内核启动时由 :vpn 进程合并进配置
+    const context = getContext(this) as common.UIAbilityContext;
+    const s = Settings.load(context);
+    s.mode = mode;
+    Settings.save(context, s);
+    const alive = await CoreApi.isAlive();
+    if (alive) {
+      const ok = await CoreApi.patchMode(mode);
+      if (!ok) {
+        Logger.warn(TAG, 'patchMode failed');
+        promptAction.showToast({ message: '模式切换失败', duration: 2000 });
+      }
+    } else {
+      promptAction.showToast({ message: '已保存，启动内核后生效', duration: 2000 });
     }
+    // 立即按新模式刷新节点展示（内核在线读 REST，离线读本地配置）
+    this.refreshNode();
   }
 
   @Builder
@@ -440,7 +503,8 @@ export struct HomePage {
       this.InfoCard({
         title: '代理节点',
         value: this.currentNode,
-        sub: this.mainGroup.length > 0 ? `${this.mainGroup} · 点击切换` : '代理 Tab 中切换',
+        sub: MODE_VALUES[this.modeIndex] === 'direct' ? '直连模式 · 不使用代理' :
+          (this.mainGroup.length > 0 ? `${this.mainGroup} · 点击切换` : '代理 Tab 中切换'),
         onTap: () => {
           // 跳到代理 Tab 并直达主分组的节点选择页；记忆本次进入的主分组
           this.tabJump = 1;

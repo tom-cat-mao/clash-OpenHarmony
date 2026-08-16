@@ -275,11 +275,20 @@ func applyOverrides(overlay map[string]any, overridesJson string) {
 		"mixedPort": "mixed-port",
 		"logLevel":  "log-level",
 		"allowLan":  "allow-lan",
+		"mode":      "mode",
 	}
 	for src, dst := range keyMap {
-		if v, ok := ov[src]; ok {
-			overlay[dst] = v
+		v, ok := ov[src]
+		if !ok {
+			continue
 		}
+		// 用户未显式选择模式（空串）时跳过，保留订阅配置自带的 mode
+		if dst == "mode" {
+			if s, isStr := v.(string); !isStr || s == "" {
+				continue
+			}
+		}
+		overlay[dst] = v
 	}
 	log.Infoln("[OHOS] overrides applied: %s", overridesJson)
 }
