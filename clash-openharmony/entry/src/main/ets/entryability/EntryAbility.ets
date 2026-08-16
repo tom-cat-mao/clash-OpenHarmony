@@ -1,8 +1,11 @@
 /*
  * EntryAbility.ets - 应用入口（QUICK_ACCESS_DESIGN.md §1.3/§2.4 + v1.1 问题 2 修复）
- * - 卡片 call 事件（v1.1）：postCardAction action:'call' 后台拉起本 Ability（无窗口无 UI，
- *   不执行 onWindowStageCreate）。onCreate 先注册 callee 方法 'toggleVpn'（Disconnected→start，
- *   Connected→stop，过渡态忽略），再投递方法；onDestroy 注销。
+ * - 卡片 call 事件（v1.1 + v1.2）：postCardAction action:'call' 后台拉起本 Ability（无窗口无 UI，
+ *   不执行 onWindowStageCreate）。onCreate 先注册 callee 方法 'toggleVpn'，再投递方法；onDestroy 注销。
+ *   v1.2 竞态修复：新进程 VpnController.status 恒为 Disconnected，但 VPN 可能实际仍在
+ *   （:vpn 进程尚未被系统回收），故 toggle 先 VpnController.recover() REST 探活，
+ *   探活落定后再决定 start/stop（官方 call 事件模式见「通过router或call事件刷新卡片内容」：
+ *   https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/arkts-widget-page-interaction）。
  * - 进程级状态监听（v1.1）：无 UI 时 HomePage 不存在，保活/卡片同步必须挂在进程级——
  *   onCreate 注册一次 VpnController.onChanged（模块级布尔门闩防重复）：每次状态变化
  *   CardSync.sync + Connected→LiveViewKeeper.start / Disconnected→LiveViewKeeper.stop。
@@ -89,26 +92,8 @@ export default class EntryAbility extends UIAbility {
         } catch (e2) {
           Logger.warn(TAG, 'parse call params failed: ' + ((e2 as Error).message ?? JSON.stringify(e2)));
         }
-        const status = VpnController.status;
-        if (status === VpnStatus.Disconnected) {
-          VpnController.start(ctx);
-          // 即时反馈：目标态文案直接推给被点击的卡片（护栏防挂起；后续状态监听会继续校准）
-          if (cardFormId.length > 0) {
-            CardSync.updateOne(cardFormId, 'connecting').catch((e2: Object) => {
-              Logger.warn(TAG, 'tap-time card update failed: ' + JSON.stringify(e2));
-            });
-          }
-        } else if (status === VpnStatus.Connected) {
-          VpnController.stop(ctx);
-          if (cardFormId.length > 0) {
-            CardSync.updateOne(cardFormId, 'disconnected').catch((e2: Object) => {
-              Logger.warn(TAG, 'tap-time card update failed: ' + JSON.stringify(e2));
-            });
-          }
-        } else {
-          // Connecting/Disconnecting 过渡态：忽略
-          Logger.info(TAG, 'toggle ignored, status=' + VpnStatus[status]);
-        }
+        // v1.2：先 REST 探活校正真实状态再决定启停（详见 toggleVpnFromCard）
+        this.toggleVpnFromCard(ctx, cardFormId);
         return new EmptyReply();
       });
     } catch (e) {
@@ -136,20 +121,36 @@ export default class EntryAbility extends UIAbility {
         }
       });
     }
-    // ③ 冷启动立即补一次同步：把共享文件状态刷新成真实状态（进程重建后卡片可能停在旧文案）
-    CardSync.sync(this.context).catch((e: Object) => {
-      Logger.warn(TAG, 'CardSync.sync failed: ' + JSON.stringify(e));
-    });
     if (parseToggleAction(want)) {
-      // 卡片显式意图：立即连接（用户点卡片即是要开 VPN）
-      Logger.info(TAG, 'toggle from card: start');
-      VpnController.start(this.context);
+      // 卡片显式意图：确保连接（router 后备路径，§2.4）。新进程 status 恒为 Disconnected，
+      // 同样先探活——VPN 实际仍在时跳过 start，避免重复启动被系统拒绝（见 net-vpnextension 官方指南）
+      VpnController.recover((alive: boolean) => {
+        if (!alive && VpnController.status === VpnStatus.Disconnected) {
+          Logger.info(TAG, 'toggle from card: start');
+          VpnController.start(this.context);
+        } else {
+          Logger.info(TAG, 'toggle from card: already up alive=' + alive +
+            ' status=' + VpnStatus[VpnController.status]);
+        }
+      });
       return;
     }
-    const s = Settings.load(this.context);
-    if (s.autoRestore && s.vpnWasConnected && VpnController.status === VpnStatus.Disconnected) {
-      this.scheduleAutoRestore();
-    }
+    // ③ 冷启动补一次同步：先 REST 探活校正真实状态再写共享文件/推卡片。新进程
+    // VpnController.status 恒为 Disconnected——若 VPN 实际仍在（:vpn 进程未被回收的
+    // 边缘窗口），直接 sync 会把文件误写成 disconnected（卡片显示「未连接」但 VPN 在）。
+    // 官方规则：调用 startVpnExtensionAbility 的应用进程退出时系统主动停止 VPN，
+    // 但回收存在时延（https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/net-vpnextension）。
+    // autoRestore 同样挪到探活后调度：避免探活未完成时误判断开 → 重复 start 被系统拒绝。
+    VpnController.recover((alive: boolean) => {
+      Logger.info(TAG, 'onCreate recover alive=' + alive + ' status=' + VpnStatus[VpnController.status]);
+      CardSync.sync(this.context).catch((e: Object) => {
+        Logger.warn(TAG, 'CardSync.sync failed: ' + JSON.stringify(e));
+      });
+      const s = Settings.load(this.context);
+      if (s.autoRestore && s.vpnWasConnected && VpnController.status === VpnStatus.Disconnected) {
+        this.scheduleAutoRestore();
+      }
+    });
   }
 
   onNewWant(want: Want, launchParam: AbilityConstant.LaunchParam): void {
@@ -185,6 +186,60 @@ export default class EntryAbility extends UIAbility {
       this.callee.off(METHOD_TOGGLE_VPN);
     } catch (e) {
       Logger.warn(TAG, 'callee.off failed: ' + ((e as Error).message ?? JSON.stringify(e)));
+    }
+  }
+
+  /**
+   * 卡片点击切换（v1.2 竞态修复）：卡片 call 后台拉起本 Ability 时不建 UI/HomePage，
+   * 新进程 VpnController.status 恒为 Disconnected——即使 VPN 实际仍在（:vpn 进程尚未
+   * 被系统回收的边缘窗口）。直接按 Disconnected 判 start 会重复启动（系统侧 VPN 已激活，
+   * startVpnExtensionAbility 会被系统拒绝，见官方「连接VPN」：
+   * https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/net-vpnextension）。
+   * 修复：先 VpnController.recover() REST 探活（内核活 → 置 Connected），探活落定后
+   * 再按真实状态决定 stop/start；recover 探活为本地回环请求，正常几十毫秒内完成。
+   */
+  private toggleVpnFromCard(ctx: common.UIAbilityContext, cardFormId: string): void {
+    const status = VpnController.status;
+    if (status === VpnStatus.Connecting || status === VpnStatus.Disconnecting) {
+      // 过渡态：忽略（探活前快路径）
+      Logger.info(TAG, 'toggle ignored, status=' + VpnStatus[status]);
+      return;
+    }
+    if (status === VpnStatus.Connected) {
+      Logger.info(TAG, 'toggle from card: stop');
+      VpnController.stop(ctx);
+      this.pushCard(cardFormId, 'disconnected');
+      return;
+    }
+    // Disconnected：先探活确认内核真实状态，再决定动作
+    Logger.info(TAG, 'toggle from card: probing core...');
+    VpnController.recover((alive: boolean) => {
+      const s = VpnController.status;
+      if (s === VpnStatus.Connecting || s === VpnStatus.Disconnecting) {
+        // 探活期间状态被并发路径推进（如另一路点击已 start）：过渡态忽略
+        Logger.info(TAG, 'toggle probe done, transition status=' + VpnStatus[s]);
+        return;
+      }
+      if (s === VpnStatus.Connected) {
+        // 探活确认内核活着（VPN 实际仍在）→ 目标态为断开
+        Logger.info(TAG, 'toggle probe alive=' + alive + ': stop');
+        VpnController.stop(ctx);
+        this.pushCard(cardFormId, 'disconnected');
+      } else {
+        // 探活确认内核已死 → 真正断开，正常启动
+        Logger.info(TAG, 'toggle probe alive=' + alive + ': start');
+        VpnController.start(ctx);
+        this.pushCard(cardFormId, 'connecting');
+      }
+    });
+  }
+
+  /** 即时反馈：目标态文案直接推给被点击的卡片（3 秒护栏防挂起；后续状态监听会继续校准） */
+  private pushCard(formId: string, state: string): void {
+    if (formId.length > 0) {
+      CardSync.updateOne(formId, state).catch((e2: Object) => {
+        Logger.warn(TAG, 'tap-time card update failed: ' + JSON.stringify(e2));
+      });
     }
   }
 

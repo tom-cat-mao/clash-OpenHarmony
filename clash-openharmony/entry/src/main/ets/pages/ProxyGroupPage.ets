@@ -7,6 +7,7 @@ import { ProxyData } from '../lib/ProxyData';
 import { promptAction } from '@kit.ArkUI';
 import { Logger } from '../lib/Logger';
 import { common } from '@kit.AbilityKit';
+import { Settings } from '../lib/Settings';
 
 const TAG = 'proxyGroup';
 const TEST_URL = 'https://www.gstatic.com/generate_204';
@@ -54,7 +55,39 @@ export struct ProxyGroupPage {
   @State localSource: boolean = false;
 
   aboutToAppear(): void {
+    this.restoreSortMode();
     this.load();
+  }
+
+  /** 进入页面时恢复该组记住的排序方式（0=按名称, 1=按延迟升序）；无记录或解析失败静默回退 0 */
+  private restoreSortMode(): void {
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const map = JSON.parse(Settings.load(context).proxySortJson) as Record<string, number>;
+      this.sortMode = map[ProxyGroupBus.current] === 1 ? 1 : 0;
+    } catch (e) {
+      Logger.warn(TAG, `restore sort mode failed, fallback to 0: ${JSON.stringify(e)}`);
+      this.sortMode = 0;
+    }
+  }
+
+  /** 切换排序后立即把该组的新值写回 Settings（读-改-写；解析失败重建空表，不抛异常） */
+  private saveSortMode(): void {
+    try {
+      const context = getContext(this) as common.UIAbilityContext;
+      const s = Settings.load(context);
+      let map: Record<string, number> = {};
+      try {
+        map = JSON.parse(s.proxySortJson) as Record<string, number>;
+      } catch (e) {
+        map = {};
+      }
+      map[ProxyGroupBus.current] = this.sortMode;
+      s.proxySortJson = JSON.stringify(map);
+      Settings.save(context, s);
+    } catch (e) {
+      Logger.warn(TAG, `save sort mode failed: ${JSON.stringify(e)}`);
+    }
   }
 
   private async load(): Promise<void> {
@@ -319,6 +352,7 @@ export struct ProxyGroupPage {
         })
         .onClick(() => {
           this.sortMode = this.sortMode === 0 ? 1 : 0;
+          this.saveSortMode();
         })
       }
       .width('100%')

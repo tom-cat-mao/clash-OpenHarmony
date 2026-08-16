@@ -83,12 +83,19 @@ export struct HomePage {
         // （无 UI 后台态也保证刷新），此处不再重复调用 CardSync
       });
     }
-    VpnController.recover();
-    LiveViewKeeper.ensure(getContext(this) as common.UIAbilityContext);
+    const context = getContext(this) as common.UIAbilityContext;
+    // v1.2：先 REST 探活校正真实状态，探活落定后再同步卡片——避免探活前 sync 用新进程的
+    // Disconnected 把「VPN 实际仍在」的文件状态误写成 disconnected（recover 置 Connected
+    // 时 onChanged 会再触发一次 sync，此处兜底探活失败场景）
+    VpnController.recover(() => {
+      CardSync.sync(context).catch(() => {
+        // 卡片同步失败不影响主流程
+      });
+    });
+    LiveViewKeeper.ensure(context);
     if (this.status === VpnStatus.Connected) {
       this.onCoreUp();
     }
-    const context = getContext(this) as common.UIAbilityContext;
     const active = ProfileStore.getActiveFile(context);
     this.hasProfile = active.length > 0;
     this.profileName = this.hasProfile ? active.replace(/\.(yaml|yml)$/, '') : '未导入';
@@ -103,10 +110,6 @@ export struct HomePage {
       // 内核离线：用激活配置本地解析兜底，首页也能展示节点
       this.refreshNode();
     }
-    // 卡片状态初次同步（进程重建后卡片可能停留在旧文案；sync 会顺带刷新共享文件状态）
-    CardSync.sync(context).catch(() => {
-      // 卡片同步失败不影响主流程
-    });
   }
 
   aboutToDisappear(): void {

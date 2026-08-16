@@ -177,3 +177,29 @@ sync 开头新增日志 `sync begin state=.. forms=N ids=[...]`（确认共享 f
 - 点卡片 → callee 解析出 formId → 即时推送「连接中…」→ 状态监听 sync 写 vpnState=connected → 主进程 updateOne 推送「已连接」（若主进程 updateForm 不可用，tap-time/5min 表单侧兜底保证 ≤5 分钟对齐）；
 - 应用内启停 → 监听 → sync → 全卡实时刷新；
 - 日志：`sync begin state=connected forms=1 ids=["1520062275"]` + `updateForm OK/FAILED`（两侧均有）。
+
+---
+
+## v1.4 修订（2026-08-16 自愈链不真自愈 + 点击竞态修复）
+
+### 问题 1：UI 进程退出/设备重启后卡片永远停在旧状态
+
+官方规则（VPN 服务生命周期）：调用 startVpnExtensionAbility 的应用进程退出时，系统主动停止 VPN。因此 UI 进程被回收/设备重启后 VPN 实际已断，但 shared_state.json 只有 UI 进程写、停留在旧值（如 connected）；表单进程 5 分钟自愈链只重渲染文件内容 → 卡片永远「已连接」。
+
+修复：表单进程自己校验真实状态——`FormAbility.correctWithProbe()` 用 `CoreApi.isAlive()`（GET /version，127.0.0.1:9090，:vpn 独立进程回环可达）探活内核：活→connected，死→disconnected；与文件不一致时写回 SharedState 并用带 3 秒护栏的 updateOne 推校正渲染。onAddForm 同步返回文件状态 + 异步校正再推；onUpdateForm 快路径渲染 + 异步校正。
+
+### 问题 2：卡片点击拉起新进程时的状态竞态
+
+卡片 call 后台拉起不建 UI，新进程 VpnController.status 恒为 Disconnected；VPN 实际仍在（:vpn 进程回收边缘窗口）时点击会误判重复 start。
+
+修复：`VpnController.recover()` 增加可选完成回调 `onDone(alive)`；`EntryAbility.toggleVpnFromCard()` 先探活再决定 stop/start（过渡态忽略）；`parseToggleAction`（router 后备路径）同样先探活。
+
+### 问题 3：进程重建后 sync 用新进程 Disconnected 误写文件
+
+修复：EntryAbility.onCreate ③ 与 HomePage.aboutToAppear 的 CardSync.sync、autoRestore 调度全部移入 recover 探活回调（探活落定后再写文件/推卡片）；recover 置 Connected 时 onChanged 本就会触发 sync，回调内 sync 为探活失败场景兜底（幂等）。
+
+### 验收（v1.4，真机）
+- 连接 → 划卡杀 UI 进程 → 等 5 分钟自愈链 → 卡片变「未连接」（不再永远已连接）；
+- 连接 → 杀 UI 进程后边缘窗口点卡片 → 执行断开而非重复连接；
+- 断连状态点卡片 → 探活后正常连接；
+- 日志：`form: probe formId=.. alive=.. file=.. real=..`、`entry: toggle from card: probing core...`。
