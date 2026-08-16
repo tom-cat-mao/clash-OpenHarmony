@@ -67,6 +67,8 @@ export struct OverridePage {
             .width(110)
             .height(36)
             .textAlign(TextAlign.End)
+            .backgroundColor($r('sys.color.comp_background_secondary'))
+            .borderRadius(8)
             .onChange((v: string) => {
               this.mixedPort = v;
             })
@@ -125,8 +127,9 @@ export struct OverridePage {
         .padding({ top: 13, bottom: 13, left: 14, right: 14 })
       }
       .width('100%')
-      .backgroundColor($r('sys.color.comp_background_primary'))
+      .backgroundColor($r('app.color.glass_row'))
       .borderRadius(16)
+      .border({ width: 1, color: $r('app.color.glass_border') })
 
       Text('覆写项会在下次启动 VPN 时合并进内核配置；订阅配置自带的同名键以覆写为准。')
         .fontSize(12)

@@ -46,8 +46,9 @@ export struct GeoPage {
       .alignItems(HorizontalAlign.Start)
       .width('100%')
       .padding(16)
-      .backgroundColor($r('sys.color.comp_background_primary'))
+      .backgroundColor($r('app.color.glass_row'))
       .borderRadius(16)
+      .border({ width: 1, color: $r('app.color.glass_border') })
 
       Row({ space: 8 }) {
         SymbolGlyph($r('sys.symbol.cloud_and_arrow_down'))
@@ -61,8 +62,9 @@ export struct GeoPage {
       .justifyContent(FlexAlign.Center)
       .width('100%')
       .padding(16)
-      .backgroundColor($r('sys.color.comp_background_primary'))
+      .backgroundColor($r('app.color.glass_row'))
       .borderRadius(16)
+      .border({ width: 1, color: $r('app.color.glass_border') })
       .stateStyles({
         pressed: { .opacity(0.6) },
         normal: { .opacity(1) }

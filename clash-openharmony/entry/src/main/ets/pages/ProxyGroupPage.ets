@@ -303,51 +303,61 @@ export struct ProxyGroupPage {
     }
     .alignItems(HorizontalAlign.Start)
     .width('100%')
+    .height('100%')
     .padding(20)
-    .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(16)
+    // 半模态容器：玻璃强底 + 顶部 32 圆角（顶层悬浮层）
+    .backgroundColor($r('app.color.glass_bg_strong'))
+    .borderRadius({ topLeft: 32, topRight: 32 })
   }
 
   build() {
     Column({ space: 12 }) {
-      Row() {
+      Row({ space: 8 }) {
         Text(this.typeLabel() + ' · ' + this.nodes.length + ' 节点')
           .fontSize(13)
           .fontColor($r('sys.color.font_secondary'))
-        Blank()
-        if (this.testing) {
-          LoadingProgress()
-            .width(16)
-            .height(16)
-            .margin({ right: 8 })
-        } else {
-          SymbolGlyph($r('sys.symbol.bolt'))
-            .fontSize(16)
-            .fontColor([$r('sys.color.brand')])
-            .margin({ right: 4 })
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .layoutWeight(1)
+        // 测速 chip（测试中显示加载态，点击逻辑不变）
+        Row({ space: 6 }) {
+          if (this.testing) {
+            LoadingProgress()
+              .width(14)
+              .height(14)
+          } else {
+            SymbolGlyph($r('sys.symbol.bolt'))
+              .fontSize(14)
+              .fontColor([$r('sys.color.brand')])
+          }
+          Text('测速')
+            .fontSize(13)
+            .fontColor(this.testing ? $r('sys.color.font_tertiary') : $r('sys.color.brand'))
         }
-        Text('测速')
-          .fontSize(14)
-          .fontColor(this.testing ? $r('sys.color.font_tertiary') : $r('sys.color.brand'))
-          .padding(8)
-          .stateStyles({
-            pressed: { .opacity(0.6) },
-            normal: { .opacity(1.0) }
-          })
-          .onClick(() => {
-            this.testGroup();
-          })
-        Row({ space: 4 }) {
+        .padding({ top: 6, bottom: 6, left: 12, right: 12 })
+        .backgroundColor($r('app.color.chip_bg'))
+        .borderRadius(8)
+        .stateStyles({
+          pressed: { .scale({ x: 0.96, y: 0.96 }).opacity(0.9) },
+          normal: { .opacity(1.0) }
+        })
+        .onClick(() => {
+          this.testGroup();
+        })
+        // 排序 chip（名称/延迟切换，读写 Settings 逻辑不变）
+        Row({ space: 6 }) {
           SymbolGlyph($r('sys.symbol.sort'))
-            .fontSize(16)
+            .fontSize(14)
             .fontColor([$r('sys.color.brand')])
           Text(this.sortMode === 0 ? '名称' : '延迟')
             .fontSize(13)
             .fontColor($r('sys.color.brand'))
         }
-        .padding({ top: 8, bottom: 8, left: 10, right: 10 })
+        .padding({ top: 6, bottom: 6, left: 12, right: 12 })
+        .backgroundColor($r('app.color.chip_bg'))
+        .borderRadius(8)
         .stateStyles({
-          pressed: { .opacity(0.6) },
+          pressed: { .scale({ x: 0.96, y: 0.96 }).opacity(0.9) },
           normal: { .opacity(1.0) }
         })
         .onClick(() => {
@@ -358,10 +368,28 @@ export struct ProxyGroupPage {
       .width('100%')
 
       if (this.localSource) {
-        Text('内核未启动 · 仅展示激活配置中的节点')
-          .fontSize(12)
-          .fontColor($r('sys.color.font_tertiary'))
-          .width('100%')
+        // 本地只读提示条：玻璃行配方（样式与代理页本地横幅一致）
+        Row({ space: 8 }) {
+          Row() {
+            SymbolGlyph($r('sys.symbol.info_circle'))
+              .fontSize(14)
+              .fontColor([$r('sys.color.brand')])
+          }
+          .width(24)
+          .height(24)
+          .justifyContent(FlexAlign.Center)
+          .backgroundColor($r('app.color.chip_bg'))
+          .borderRadius(8)
+          Text('内核未启动 · 仅展示激活配置中的节点')
+            .fontSize(12)
+            .fontColor($r('sys.color.font_tertiary'))
+            .layoutWeight(1)
+        }
+        .width('100%')
+        .padding({ top: 10, bottom: 10, left: 12, right: 12 })
+        .backgroundColor($r('app.color.glass_row'))
+        .borderRadius(12)
+        .border({ width: 1, color: $r('app.color.glass_border') })
       }
 
       Search({ value: $$this.keyword, placeholder: '搜索节点' })
@@ -372,7 +400,9 @@ export struct ProxyGroupPage {
         Text('分组信息加载失败，请返回重试')
           .fontSize(14)
           .fontColor($r('sys.color.font_secondary'))
-          .margin({ top: 60 })
+          .width('100%')
+          .textAlign(TextAlign.Center)
+          .margin({ top: 80 })
       } else {
         Grid() {
           ForEach(this.visibleNodes(), (node: NodeView) => {
@@ -403,14 +433,15 @@ export struct ProxyGroupPage {
               .alignItems(HorizontalAlign.Start)
               .padding(10)
               .width('100%')
-              .backgroundColor(node.selected ? $r('sys.color.comp_background_secondary') : $r('sys.color.comp_background_primary'))
+              // 节点卡：玻璃行 + 发丝线；选中态 brand 描边 + chip_bg 底
+              .backgroundColor(node.selected ? $r('app.color.chip_bg') : $r('app.color.glass_row'))
               .borderRadius(12)
               .border({
-                width: node.selected ? 1.5 : 0,
-                color: node.selected ? $r('sys.color.brand') : Color.Transparent
+                width: node.selected ? 1.5 : 1,
+                color: node.selected ? $r('sys.color.brand') : $r('app.color.glass_border')
               })
               .stateStyles({
-                pressed: { .opacity(0.6) },
+                pressed: { .scale({ x: 0.96, y: 0.96 }).opacity(0.9) },
                 normal: { .opacity(1.0) }
               })
               .onClick(() => {

@@ -184,162 +184,210 @@ export struct ProxyPage {
   @Builder
   EmptyState(title: string, sub: string, actionLabel: string, actionTab: number) {
     Column({ space: 8 }) {
+      // 空态图标块：玻璃行质感（半透明底 + 发丝线 + 轻投影）
+      Column() {
+        SymbolGlyph($r('sys.symbol.bolt'))
+          .fontSize(26)
+          .fontColor([$r('sys.color.font_tertiary')])
+      }
+      .width(56)
+      .height(56)
+      .justifyContent(FlexAlign.Center)
+      .backgroundColor($r('app.color.glass_row'))
+      .borderRadius(16)
+      .border({ width: 1, color: $r('app.color.glass_border') })
+      .shadow({ radius: 12, color: '#1F000000', offsetX: 0, offsetY: 4 })
+
       Text(title)
-        .fontSize(15)
+        .fontSize(16)
+        .fontWeight(FontWeight.Medium)
         .fontColor($r('sys.color.font_secondary'))
       Text(sub)
         .fontSize(13)
         .fontColor($r('sys.color.font_tertiary'))
         .textAlign(TextAlign.Center)
       if (actionLabel.length > 0) {
+        // 操作入口 chip（tabJump 跳转逻辑不变）
         Text(actionLabel)
           .fontSize(14)
           .fontColor($r('sys.color.brand'))
-          .padding(8)
+          .padding({ top: 7, bottom: 7, left: 14, right: 14 })
+          .backgroundColor($r('app.color.chip_bg'))
+          .borderRadius(8)
+          .margin({ top: 4 })
           .onClick(() => {
             this.tabJump = actionTab;
           })
       }
     }
     .width('100%')
-    .margin({ top: 80 })
+    .margin({ top: 64 })
   }
 
   @Builder
   LocalBanner() {
-    Row({ space: 6 }) {
-      SymbolGlyph($r('sys.symbol.info_circle'))
-        .fontSize(14)
-        .fontColor([$r('sys.color.font_tertiary')])
+    Row({ space: 8 }) {
+      // 品牌浅底图标块
+      Row() {
+        SymbolGlyph($r('sys.symbol.info_circle'))
+          .fontSize(14)
+          .fontColor([$r('sys.color.brand')])
+      }
+      .width(24)
+      .height(24)
+      .justifyContent(FlexAlign.Center)
+      .backgroundColor($r('app.color.chip_bg'))
+      .borderRadius(8)
       Text('内核未启动 · 展示激活配置中的节点，启动后可切换与测速')
         .fontSize(12)
         .fontColor($r('sys.color.font_tertiary'))
         .layoutWeight(1)
     }
     .width('100%')
-    .padding({ top: 8, bottom: 8, left: 12, right: 12 })
-    .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(10)
+    .padding({ top: 10, bottom: 10, left: 12, right: 12 })
+    .backgroundColor($r('app.color.glass_row'))
+    .borderRadius(12)
+    .border({ width: 1, color: $r('app.color.glass_border') })
   }
 
   build() {
-    Column({ space: 12 }) {
-      Row() {
-        Text('代理')
-          .fontSize(26)
-          .fontWeight(FontWeight.Bold)
-          .fontColor($r('sys.color.font_primary'))
-      }
-      .width('100%')
-      .margin({ top: 8, bottom: 4 })
+    Stack({ alignContent: Alignment.Top }) {
+      // 顶部品牌弥散光（纯视觉层，不拦截触摸）：brand 8% 向下淡出到透明
+      Column()
+        .width('100%')
+        .height(200)
+        .linearGradient({
+          angle: 180,
+          colors: [[$r('app.color.glow_brand'), 1.0], [$r('app.color.glow_brand'), 0.0]]
+        })
+        .hitTestBehavior(HitTestMode.Transparent)
+      Column({ space: 12 }) {
+        // 一级页标题：30fp Bold（Title_L）+ 12fp 副标题
+        Column({ space: 2 }) {
+          Text('代理')
+            .fontSize(30)
+            .fontWeight(FontWeight.Bold)
+            .fontColor($r('sys.color.font_primary'))
+          Text('代理分组与节点')
+            .fontSize(12)
+            .fontColor($r('sys.color.font_tertiary'))
+        }
+        .alignItems(HorizontalAlign.Start)
+        .width('100%')
+        .margin({ top: 8, bottom: 4 })
 
-      if (this.mode === 'direct') {
-        // 直连模式：所有流量直连，节点列表无意义
-        this.EmptyState('直连模式', '所有流量直连，不使用代理节点\n在首页切换到「规则」或「全局」模式后查看节点', '', 0)
-      } else if (this.source === 'none') {
-        if (!this.hasActive) {
-          this.EmptyState('暂无代理分组', '还没有导入配置\n导入订阅后这里会展示分组与节点', '去导入订阅 ›', 2)
-        } else {
-          this.EmptyState('未读取到代理分组', '内核未启动，且激活配置中未能解析出分组\n请到「配置」页检查配置内容', '去配置页 ›', 2)
-        }
-      } else if (this.groups.length === 0) {
-        if (this.source === 'core') {
-          this.EmptyState('暂无代理分组', '当前配置没有定义代理组，全部流量直连', '去导入订阅 ›', 2)
-        } else {
-          this.EmptyState('暂无代理分组', '激活配置中没有定义代理组', '去配置页 ›', 2)
-        }
-      } else {
-        Column({ space: 10 }) {
-          if (this.source === 'local') {
-            this.LocalBanner()
+        if (this.mode === 'direct') {
+          // 直连模式：所有流量直连，节点列表无意义
+          this.EmptyState('直连模式', '所有流量直连，不使用代理节点\n在首页切换到「规则」或「全局」模式后查看节点', '', 0)
+        } else if (this.source === 'none') {
+          if (!this.hasActive) {
+            this.EmptyState('暂无代理分组', '还没有导入配置\n导入订阅后这里会展示分组与节点', '去导入订阅 ›', 2)
+          } else {
+            this.EmptyState('未读取到代理分组', '内核未启动，且激活配置中未能解析出分组\n请到「配置」页检查配置内容', '去配置页 ›', 2)
           }
-          Refresh({ refreshing: $$this.refreshing }) {
-            List({ space: 12 }) {
-              ForEach(this.groups, (g: GroupRow) => {
-                ListItem() {
-                  Row() {
-                    Column({ space: 4 }) {
-                      Text(g.name)
-                        .fontSize(15)
-                        .fontWeight(FontWeight.Medium)
-                        .fontColor($r('sys.color.font_primary'))
-                        .maxLines(1)
-                        .textOverflow({ overflow: TextOverflow.Ellipsis })
-                      Row({ space: 6 }) {
-                        Text(`${this.typeLabel(g.type)} · ${g.count} 节点`)
-                          .fontSize(13)
-                          .fontColor($r('sys.color.font_tertiary'))
-                        if (g.delay > 0) {
-                          Text(`${g.delay}ms`)
+        } else if (this.groups.length === 0) {
+          if (this.source === 'core') {
+            this.EmptyState('暂无代理分组', '当前配置没有定义代理组，全部流量直连', '去导入订阅 ›', 2)
+          } else {
+            this.EmptyState('暂无代理分组', '激活配置中没有定义代理组', '去配置页 ›', 2)
+          }
+        } else {
+          Column({ space: 10 }) {
+            if (this.source === 'local') {
+              this.LocalBanner()
+            }
+            Refresh({ refreshing: $$this.refreshing }) {
+              List({ space: 12 }) {
+                ForEach(this.groups, (g: GroupRow) => {
+                  ListItem() {
+                    Row() {
+                      Column({ space: 4 }) {
+                        Text(g.name)
+                          .fontSize(15)
+                          .fontWeight(FontWeight.Medium)
+                          .fontColor($r('sys.color.font_primary'))
+                          .maxLines(1)
+                          .textOverflow({ overflow: TextOverflow.Ellipsis })
+                        Row({ space: 6 }) {
+                          Text(`${this.typeLabel(g.type)} · ${g.count} 节点`)
                             .fontSize(13)
-                            .fontColor(this.delayColor(g.delay))
+                            .fontColor($r('sys.color.font_tertiary'))
+                          if (g.delay > 0) {
+                            Text(`${g.delay}ms`)
+                              .fontSize(13)
+                              .fontColor(this.delayColor(g.delay))
+                          }
                         }
                       }
-                    }
-                    .alignItems(HorizontalAlign.Start)
-                    .layoutWeight(1)
+                      .alignItems(HorizontalAlign.Start)
+                      .layoutWeight(1)
 
-                    Column({ space: 4 }) {
-                      if (g.type !== 'Selector') {
-                        Text('自动')
-                          .fontSize(11)
-                          .fontColor($r('sys.color.brand'))
-                          .backgroundColor($r('app.color.chip_bg'))
-                          .borderRadius(8)
-                          .padding({ top: 2, bottom: 2, left: 8, right: 8 })
-                      } else if (this.mode === 'global' && g.name === 'GLOBAL') {
-                        Text('全局出口')
-                          .fontSize(11)
-                          .fontColor($r('sys.color.brand'))
-                          .backgroundColor($r('app.color.chip_bg'))
-                          .borderRadius(8)
-                          .padding({ top: 2, bottom: 2, left: 8, right: 8 })
+                      Column({ space: 4 }) {
+                        if (g.type !== 'Selector') {
+                          Text('自动')
+                            .fontSize(11)
+                            .fontColor($r('sys.color.brand'))
+                            .backgroundColor($r('app.color.chip_bg'))
+                            .borderRadius(8)
+                            .padding({ top: 2, bottom: 2, left: 8, right: 8 })
+                        } else if (this.mode === 'global' && g.name === 'GLOBAL') {
+                          Text('全局出口')
+                            .fontSize(11)
+                            .fontColor($r('sys.color.brand'))
+                            .backgroundColor($r('app.color.chip_bg'))
+                            .borderRadius(8)
+                            .padding({ top: 2, bottom: 2, left: 8, right: 8 })
+                        }
+                        Text(g.now)
+                          .fontSize(13)
+                          .fontColor($r('sys.color.font_secondary'))
+                          .maxLines(1)
+                          .textOverflow({ overflow: TextOverflow.Ellipsis })
+                          .constraintSize({ maxWidth: '42%' })
                       }
-                      Text(g.now)
-                        .fontSize(13)
-                        .fontColor($r('sys.color.font_secondary'))
-                        .maxLines(1)
-                        .textOverflow({ overflow: TextOverflow.Ellipsis })
-                        .constraintSize({ maxWidth: '42%' })
-                    }
-                    .alignItems(HorizontalAlign.End)
+                      .alignItems(HorizontalAlign.End)
 
-                    SymbolGlyph($r('sys.symbol.chevron_right'))
-                      .fontSize(16)
-                      .fontColor([$r('sys.color.font_tertiary')])
-                      .margin({ left: 8 })
+                      SymbolGlyph($r('sys.symbol.chevron_right'))
+                        .fontSize(16)
+                        .fontColor([$r('sys.color.font_tertiary')])
+                        .margin({ left: 8 })
+                    }
+                    .width('100%')
+                    .padding(14)
+                    // 分组卡片：列表行玻璃配方（半透明底 + 发丝线，行内不开 blur）
+                    .backgroundColor($r('app.color.glass_row'))
+                    .borderRadius(16)
+                    .border({ width: 1, color: $r('app.color.glass_border') })
+                    .stateStyles({
+                      pressed: { .scale({ x: 0.96, y: 0.96 }).opacity(0.9) },
+                      normal: { .opacity(1.0) }
+                    })
+                    .onClick(() => {
+                      this.openGroup(g);
+                    })
                   }
-                  .width('100%')
-                  .padding(14)
-                  .backgroundColor($r('sys.color.comp_background_primary'))
-                  .borderRadius(16)
-                  .stateStyles({
-                    pressed: { .backgroundColor($r('sys.color.comp_background_secondary')) },
-                    normal: { .backgroundColor($r('sys.color.comp_background_primary')) }
-                  })
-                  .onClick(() => {
-                    this.openGroup(g);
-                  })
-                }
-              }, (g: GroupRow) => g.name + '|' + g.now + '|' + g.delay)
+                }, (g: GroupRow) => g.name + '|' + g.now + '|' + g.delay)
+              }
+              .width('100%')
+              .layoutWeight(1)
+              .scrollBar(BarState.Off)
             }
             .width('100%')
             .layoutWeight(1)
-            .scrollBar(BarState.Off)
+            .onRefreshing(() => {
+              this.onPullRefresh();
+            })
           }
           .width('100%')
           .layoutWeight(1)
-          .onRefreshing(() => {
-            this.onPullRefresh();
-          })
         }
-        .width('100%')
-        .layoutWeight(1)
       }
+      .width('100%')
+      .height('100%')
+      .padding({ left: 16, right: 16 })
     }
     .width('100%')
     .height('100%')
-    .padding({ left: 16, right: 16 })
     .backgroundColor($r('sys.color.background_secondary'))
   }
 }

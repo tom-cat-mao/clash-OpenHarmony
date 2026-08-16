@@ -2,7 +2,7 @@
   "color": [
     {
       "name": "brand",
-      "value": "#4A8CFF"
+      "value": "#317AF7"
     },
     {
       "name": "delay_good",
@@ -18,7 +18,27 @@
     },
     {
       "name": "chip_bg",
-      "value": "#1A4A8CFF"
+      "value": "#1A317AF7"
+    },
+    {
+      "name": "glass_bg",
+      "value": "#B3202224"
+    },
+    {
+      "name": "glass_bg_strong",
+      "value": "#E6202224"
+    },
+    {
+      "name": "glass_row",
+      "value": "#80202224"
+    },
+    {
+      "name": "glass_border",
+      "value": "#1FFFFFFF"
+    },
+    {
+      "name": "glow_brand",
+      "value": "#14317AF7"
     }
   ]
 }

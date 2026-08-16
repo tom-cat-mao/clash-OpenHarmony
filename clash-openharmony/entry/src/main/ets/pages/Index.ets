@@ -1,7 +1,9 @@
 /*
- * Index.ets - 应用主框架（DESIGN.md §2）
+ * Index.ets - 应用主框架（DESIGN.md §2，H7_DESIGN.md §3）
  * Navigation（二级页路由）+ 底部 Tabs：首页 / 代理 / 配置 / 设置
+ * H7 视觉：底部 Tabs 改为官方「平铺式」玻璃形态（悬浮 + 强玻璃底 + 组件级模糊）
  */
+import { curves } from '@kit.ArkUI';
 import { HomePage } from './HomePage';
 import { ProxyPage } from './ProxyPage';
 import { ProfilePage } from './ProfilePage';
@@ -81,6 +83,8 @@ struct Index {
       SymbolGlyph(this.currentTab === index ? symbolActive : symbol)
         .fontSize(22)
         .fontColor(this.currentTab === index ? [$r('sys.color.brand')] : [$r('sys.color.icon_secondary')])
+        // H7：选中时符号弹性跳动（BounceSymbolEffect @since 12，方向默认向下）
+        .symbolEffect(new BounceSymbolEffect(), this.currentTab === index)
       Text(label)
         .fontSize(11)
         .fontColor(this.currentTab === index ? $r('sys.color.brand') : $r('sys.color.font_secondary'))
@@ -116,12 +120,22 @@ struct Index {
       }
       .width('100%')
       .height('100%')
-      .barHeight(56)
+      // H7：平铺式玻璃 TabBar —— 悬浮于内容之上、48 高、强玻璃底 + 组件级模糊（barOverlap @since 10，barBackgroundBlurStyle @since 11）
+      .barHeight(48)
+      .barOverlap(true)
+      .barBackgroundColor($r('app.color.glass_bg_strong'))
+      .barBackgroundBlurStyle(BlurStyle.COMPONENT_THICK)
       .animationDuration(0)
       .scrollable(false)
       .onChange((index: number) => {
-        this.currentTab = index;
-        this.currentVisibleTab = index;
+        // H7：选中态颜色弹性切换（springMotion @since 9，250ms，纯视觉）
+        this.getUIContext().animateTo({
+          duration: 250,
+          curve: curves.springMotion(0.555, 0.53)
+        }, () => {
+          this.currentTab = index;
+          this.currentVisibleTab = index;
+        });
       })
     }
     .hideTitleBar(true)

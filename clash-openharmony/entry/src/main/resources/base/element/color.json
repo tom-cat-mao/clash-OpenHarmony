@@ -23,6 +23,26 @@
     {
       "name": "chip_bg",
       "value": "#1A0A59F7"
+    },
+    {
+      "name": "glass_bg",
+      "value": "#B3FFFFFF"
+    },
+    {
+      "name": "glass_bg_strong",
+      "value": "#E6FFFFFF"
+    },
+    {
+      "name": "glass_row",
+      "value": "#80FFFFFF"
+    },
+    {
+      "name": "glass_border",
+      "value": "#1A000000"
+    },
+    {
+      "name": "glow_brand",
+      "value": "#140A59F7"
     }
   ]
 }

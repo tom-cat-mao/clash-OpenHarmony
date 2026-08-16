@@ -412,7 +412,7 @@ export struct ProfilePage {
               .fontColor([$r('sys.color.font_secondary')])
               .padding(8)
               .stateStyles({
-                pressed: { .opacity(0.6) },
+                pressed: { .scale({ x: 0.96, y: 0.96 }).opacity(0.9) },
                 normal: { .opacity(1.0) }
               })
               .onClick(() => {
@@ -425,7 +425,7 @@ export struct ProfilePage {
           .fontColor([$r('sys.color.font_secondary')])
           .padding(8)
           .stateStyles({
-            pressed: { .opacity(0.6) },
+            pressed: { .scale({ x: 0.96, y: 0.96 }).opacity(0.9) },
             normal: { .opacity(1.0) }
           })
           .onClick(() => {
@@ -436,9 +436,13 @@ export struct ProfilePage {
     }
     .width('100%')
     .padding({ top: 12, bottom: 12, left: 14, right: 14 })
+    // 列表行玻璃配方：半透明行底色 + 发丝线描边（不开 blur，避免列表滚动掉帧）
+    .backgroundColor($r('app.color.glass_row'))
+    .borderRadius(16)
+    .border({ width: 1, color: $r('app.color.glass_border') })
     .stateStyles({
-      pressed: { .backgroundColor($r('sys.color.comp_background_secondary')) },
-      normal: { .backgroundColor(Color.Transparent) }
+      pressed: { .scale({ x: 0.96, y: 0.96 }).opacity(0.9) },
+      normal: { .opacity(1.0) }
     })
     .onClick(() => {
       this.activate(p);
@@ -460,10 +464,14 @@ export struct ProfilePage {
         .fontColor([$r('sys.color.font_tertiary')])
     }
     .width('100%')
-    .padding({ top: 14, bottom: 14, left: 20, right: 20 })
+    .padding({ top: 14, bottom: 14, left: 16, right: 16 })
+    // sheet 内的导入入口行：同样走列表行玻璃配方
+    .backgroundColor($r('app.color.glass_row'))
+    .borderRadius(16)
+    .border({ width: 1, color: $r('app.color.glass_border') })
     .stateStyles({
-      pressed: { .backgroundColor($r('sys.color.comp_background_secondary')) },
-      normal: { .backgroundColor(Color.Transparent) }
+      pressed: { .scale({ x: 0.96, y: 0.96 }).opacity(0.9) },
+      normal: { .opacity(1.0) }
     })
     .onClick(() => {
       onTap();
@@ -472,13 +480,13 @@ export struct ProfilePage {
 
   @Builder
   ImportMenuSheet() {
-    Column({ space: 0 }) {
+    Column({ space: 12 }) {
       Text('导入配置')
         .fontSize(17)
         .fontWeight(FontWeight.Medium)
         .fontColor($r('sys.color.font_primary'))
         .width('100%')
-        .padding({ top: 20, left: 20, right: 20, bottom: 8 })
+        .padding({ top: 8, bottom: 4 })
       this.ImportEntry($r('sys.symbol.link'), '从 URL 导入', () => {
         this.sheetMode = SHEET_URL;
       })
@@ -492,12 +500,8 @@ export struct ProfilePage {
         this.sheetMode = SHEET_NONE;
         this.importClipboard();
       })
-      Row()
-        .height(16)
     }
     .width('100%')
-    .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(16)
   }
 
   @Builder
@@ -529,9 +533,12 @@ export struct ProfilePage {
       }
       .width('100%')
     }
+    .width('100%')
     .padding(20)
-    .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(16)
+    // 玻璃主卡配方（弹层内表单卡：只取底色+描边，不开 blur）
+    .backgroundColor($r('app.color.glass_bg'))
+    .borderRadius(20)
+    .border({ width: 1, color: $r('app.color.glass_border') })
   }
 
   @Builder
@@ -565,27 +572,37 @@ export struct ProfilePage {
       }
       .width('100%')
     }
+    .width('100%')
     .padding(20)
-    .backgroundColor($r('sys.color.comp_background_primary'))
-    .borderRadius(16)
+    // 玻璃主卡配方（弹层内表单卡：只取底色+描边，不开 blur）
+    .backgroundColor($r('app.color.glass_bg'))
+    .borderRadius(20)
+    .border({ width: 1, color: $r('app.color.glass_border') })
   }
 
   @Builder
   MainSheet() {
-    if (this.sheetMode === SHEET_IMPORT) {
-      this.ImportMenuSheet()
-    } else if (this.sheetMode === SHEET_URL) {
-      this.UrlImportDialog()
-    } else if (this.sheetMode === SHEET_RENAME) {
-      this.RenameSheet()
+    // 半模态玻璃容器：glass_bg_strong 90% 不透底 + 顶部 32 圆角（悬浮层规格）
+    Column({ space: 12 }) {
+      if (this.sheetMode === SHEET_IMPORT) {
+        this.ImportMenuSheet()
+      } else if (this.sheetMode === SHEET_URL) {
+        this.UrlImportDialog()
+      } else if (this.sheetMode === SHEET_RENAME) {
+        this.RenameSheet()
+      }
     }
+    .width('100%')
+    .padding({ top: 12, left: 16, right: 16, bottom: 28 })
+    .backgroundColor($r('app.color.glass_bg_strong'))
+    .borderRadius({ topLeft: 32, topRight: 32 })
   }
 
   build() {
     Column({ space: 12 }) {
       Row() {
         Text('配置')
-          .fontSize(26)
+          .fontSize(30)
           .fontWeight(FontWeight.Bold)
           .fontColor($r('sys.color.font_primary'))
         Blank()
@@ -593,8 +610,11 @@ export struct ProfilePage {
           .fontSize(24)
           .fontColor([$r('sys.color.brand')])
           .padding(8)
+          // ＋ 按钮微调：品牌浅色 chip 底 + 统一按压反馈
+          .backgroundColor($r('app.color.chip_bg'))
+          .borderRadius(16)
           .stateStyles({
-            pressed: { .opacity(0.6) },
+            pressed: { .scale({ x: 0.96, y: 0.96 }).opacity(0.9) },
             normal: { .opacity(1.0) }
           })
           .onClick(() => {
@@ -618,23 +638,15 @@ export struct ProfilePage {
         .margin({ top: 60 })
       } else {
         Refresh({ refreshing: $$this.refreshing }) {
-          List({ space: 0 }) {
-            ForEach(this.profiles, (p: ProfileMeta, index: number) => {
+          // 行与行之间留 12vp 卡片间距，各行独立玻璃卡片
+          List({ space: 12 }) {
+            ForEach(this.profiles, (p: ProfileMeta) => {
               ListItem() {
-                Column() {
-                  this.ProfileRow(p)
-                  if (index < this.profiles.length - 1) {
-                    Divider()
-                      .color($r('sys.color.comp_divider'))
-                      .margin({ left: 14 })
-                  }
-                }
+                this.ProfileRow(p)
               }
             }, (p: ProfileMeta) => p.file + '|' + (p.active ? '1' : '0') + '|' + this.metaStamp(p.file))
           }
           .width('100%')
-          .backgroundColor($r('sys.color.comp_background_primary'))
-          .borderRadius(12)
         }
         .onRefreshing(() => {
           this.onPullRefresh();
@@ -645,7 +657,8 @@ export struct ProfilePage {
     }
     .width('100%')
     .height('100%')
-    .padding({ left: 16, right: 16 })
+    // 底部避让 76：悬浮玻璃 TabBar 48 + 系统导航条 28
+    .padding({ left: 16, right: 16, bottom: 76 })
     .backgroundColor($r('sys.color.background_secondary'))
     .bindSheet($$this.showSheet, this.MainSheet(), { height: SheetSize.MEDIUM })
   }
