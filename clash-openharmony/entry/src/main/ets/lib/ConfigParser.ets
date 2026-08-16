@@ -24,6 +24,8 @@ import { ProxyInfo } from './CoreApi';
 export interface ParsedConfig {
   mode: string;
   proxies: Record<string, ProxyInfo>;
+  /** 分组名按配置文件出现顺序（用于恢复内核 REST 丢失的配置顺序） */
+  groupOrder: string[];
 }
 
 interface LocalProxy {
@@ -319,9 +321,9 @@ export namespace ConfigParser {
     return out;
   }
 
-  /** 入口：解析配置文本 -> 与 REST /proxies 兼容的 map + mode */
+  /** 入口：解析配置文本 -> 与 REST /proxies 兼容的 map + mode + 配置顺序 */
   export function parse(content: string): ParsedConfig {
-    const result: ParsedConfig = { mode: 'rule', proxies: {} };
+    const result: ParsedConfig = { mode: 'rule', proxies: {}, groupOrder: [] };
     if (content.length === 0) {
       return result;
     }
@@ -385,11 +387,13 @@ export namespace ConfigParser {
       }
     }
 
-    // 组名先收集：组内成员引用另一组（子组）时不能被误判为 provider 占位
+    // 组名先收集：组内成员引用另一组（子组）时不能被误判为 provider 占位；
+    // 同时保留配置文件中的出现顺序（内核 REST 的 map 序列化按字典序，顺序在此恢复）
     const groupNames: string[] = [];
     for (const g of groups) {
       groupNames.push(g.name);
     }
+    result.groupOrder = groupNames.slice();
 
     // provider 名占位（use 引用的具体节点内核运行时才有；排除组名）
     const providerNames: string[] = [];

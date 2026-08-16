@@ -117,6 +117,24 @@ export struct ProxyPage {
       g.delay = delay;
       rows.push(g);
     }
+    // 恢复配置文件的组顺序（内核 REST 的 Go map 序列化按字典序，会把「微软服务」排到「节点选择」前面；
+    // 组名不在顺序表里的（如合成的 GLOBAL）保持原相对位置排在最后）
+    if (r.groupOrder.length > 0) {
+      rows.sort((a: GroupRow, b: GroupRow): number => {
+        const ia = r.groupOrder.indexOf(a.name);
+        const ib = r.groupOrder.indexOf(b.name);
+        if (ia < 0 && ib < 0) {
+          return 0;
+        }
+        if (ia < 0) {
+          return 1;
+        }
+        if (ib < 0) {
+          return -1;
+        }
+        return ia - ib;
+      });
+    }
     this.groups = rows;
   }
 

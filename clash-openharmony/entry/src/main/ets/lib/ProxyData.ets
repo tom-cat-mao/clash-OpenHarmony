@@ -21,6 +21,8 @@ export interface ProxyDataResult {
   source: ProxySource;
   mode: string; // 'rule' | 'global' | 'direct'
   proxies: Record<string, ProxyInfo>;
+  /** 激活配置中的分组顺序（文件序）：内核 REST 的 map 序列化按字典序，用它恢复配置顺序；为空则保持原顺序 */
+  groupOrder: string[];
 }
 
 /** 页面间共享的当前模式（HomePage 同步内核/用户选择，代理页读取做 GLOBAL 过滤） */
@@ -33,7 +35,8 @@ const VALID_MODES: string[] = ['rule', 'global', 'direct'];
 export namespace ProxyData {
 
   export async function load(context: common.Context): Promise<ProxyDataResult> {
-    // 1) 内核在线：REST 数据 + /configs 实际 mode
+    // 1) 内核在线：REST 数据 + /configs 实际 mode；
+    //    Go map 序列化按字典序，分组顺序从激活配置本地解析恢复（解析失败则空序、保持 REST 原序）
     const proxies = await CoreApi.getProxies();
     if (proxies !== null) {
       let mode: string = ModeBus.mode;
@@ -41,7 +44,12 @@ export namespace ProxyData {
       if (cfg !== null) {
         mode = cfg.mode;
       }
-      return { source: 'core', mode: normalizeMode(mode), proxies: proxies };
+      let groupOrder: string[] = [];
+      const content = ProfileStore.getActiveContent(context);
+      if (content !== null && content.length > 0) {
+        groupOrder = ConfigParser.parse(content).groupOrder;
+      }
+      return { source: 'core', mode: normalizeMode(mode), proxies: proxies, groupOrder: groupOrder };
     }
     // 2) 内核离线：解析激活配置
     const content = ProfileStore.getActiveContent(context);
@@ -50,10 +58,10 @@ export namespace ProxyData {
       if (Object.keys(parsed.proxies).length > 0) {
         const s = Settings.load(context);
         const mode = s.mode.length > 0 ? s.mode : parsed.mode;
-        return { source: 'local', mode: normalizeMode(mode), proxies: parsed.proxies };
+        return { source: 'local', mode: normalizeMode(mode), proxies: parsed.proxies, groupOrder: parsed.groupOrder };
       }
     }
-    return { source: 'none', mode: normalizeMode(ModeBus.mode), proxies: {} };
+    return { source: 'none', mode: normalizeMode(ModeBus.mode), proxies: {}, groupOrder: [] };
   }
 
   function normalizeMode(m: string): string {
